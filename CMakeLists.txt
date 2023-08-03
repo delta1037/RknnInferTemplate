@@ -5,10 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 # 指定运行时加载路径位置
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 SET(CMAKE_CXX_FLAGS "-finput-charset=UTF-8 -Wl,-rpath=./:./lib")
-# 编译选项设置
-## 本地测试
-#SET(ENABLE_LOCAL_TEST FALSE)
-## 性能统计
+# 选项-本地测试（不依赖 rknn，空转）
+SET(ENABLE_LOCAL_TEST FALSE)
+# 选项-性能统计
 SET(ENABLE_PERFORMANCE_STATISTIC TRUE)
 
 # RKNN 推理系统
@@ -24,7 +23,6 @@ include_directories(${RKNN_DIR}/include)
 
 ## 日志记录功能
 SET(DLOG_DIR ${CMAKE_SOURCE_DIR}/3rdparty/dlog/)
-link_directories(${DLOG_DIR}/lib)
 include_directories(${DLOG_DIR}/include)
 SET(DLOG_SRC
     ${DLOG_DIR}/src/log.cpp
