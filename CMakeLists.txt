@@ -14,10 +14,6 @@ SET(ENABLE_PERFORMANCE_STATISTIC TRUE)
 
 # RKNN 推理系统
 project(rknn_infer)
-# 插件
-project(plugin_rknn_image)
-
-project(test_rknn_model)
 
 # 第三方工程
 ## RKNN 推理库
@@ -54,8 +50,6 @@ endif ()
 include_directories(
     ${CMAKE_SOURCE_DIR}/rknn_infer
     ${CMAKE_SOURCE_DIR}/rknn_infer_api
-    ${CMAKE_SOURCE_DIR}/unit_test
-    ${CMAKE_SOURCE_DIR}/utils
 )
 
 #link_libraries(${RKNN_DIR}/lib/librknn_api.so)
@@ -77,17 +71,8 @@ target_link_libraries(rknn_infer
     dl
 )
 
-# 图像图例插件示例
-add_library(rknn_mobilenet SHARED
-    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet.cpp
-    ${DLOG_SRC}
-)
-target_link_libraries(rknn_mobilenet
-    ${OpenCV_LIBS}
-    ${RKNN_DIR}/lib/librknn_api.so
-    ${RKNN_DIR}/lib/librknnrt.so
-)
-
+# 测试
+project(test_rknn_model)
 add_executable(test_rknn_model
         ${CMAKE_SOURCE_DIR}/unit_test/test_rknn_model.cpp
         ${CMAKE_SOURCE_DIR}/rknn_infer/rknn_model.cpp
@@ -98,3 +83,16 @@ target_link_libraries(test_rknn_model
         ${RKNN_DIR}/lib/librknn_api.so
         ${RKNN_DIR}/lib/librknnrt.so
         )
+
+# 图像图例插件示例
+# https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_mobilenet_demo
+add_library(rknn_mobilenet SHARED
+    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet.cpp
+    ${DLOG_SRC}
+)
+target_link_libraries(rknn_mobilenet
+    ${OpenCV_LIBS}
+    ${RKNN_DIR}/lib/librknn_api.so
+    ${RKNN_DIR}/lib/librknnrt.so
+)
+

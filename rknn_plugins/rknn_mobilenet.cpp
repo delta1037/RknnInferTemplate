@@ -2,7 +2,7 @@
  * @author: bo.liu
  * @mail: geniusrabbit@qq.com
  * @date: 2023.08.03
- * @brief: RKNN 图像推理示例插件，参考 https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_mobilenet_demo 实现
+ * @brief: RKNN 图像推理示例插件，参考：https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_mobilenet_demo 实现
  */
 
 /* 包含定义插件必须的头文件 */
@@ -28,26 +28,26 @@ const int MODEL_IN_WIDTH    = 224;
 const int MODEL_IN_HEIGHT   = 224;
 const int MODEL_IN_CHANNELS = 3;
 
-static int rknn_plugin_GetTop(const float* pfProb, float* pfMaxProb, uint32_t* pMaxClass, uint32_t outputCount, uint32_t topNum){
+static int rknn_plugin_get_top(
+        const float* p_prob,
+        float* p_max_prob,
+        uint32_t* p_max_class,
+        uint32_t output_count,
+        uint32_t top_num){
     uint32_t i, j;
+    memset(p_max_prob, 0, sizeof(float) * top_num);
+    memset(p_max_class, 0xff, sizeof(float) * top_num);
 
-#define MAX_TOP_NUM 20
-    if (topNum > MAX_TOP_NUM)
-        return 0;
-
-    memset(pfMaxProb, 0, sizeof(float) * topNum);
-    memset(pMaxClass, 0xff, sizeof(float) * topNum);
-
-    for (j = 0; j < topNum; j++) {
-        for (i = 0; i < outputCount; i++) {
-            if ((i == *(pMaxClass + 0)) || (i == *(pMaxClass + 1)) || (i == *(pMaxClass + 2)) || (i == *(pMaxClass + 3)) ||
-                (i == *(pMaxClass + 4))) {
+    for (j = 0; j < top_num; j++) {
+        for (i = 0; i < output_count; i++) {
+            if ((i == *(p_max_class + 0)) || (i == *(p_max_class + 1)) || (i == *(p_max_class + 2)) || (i == *(p_max_class + 3)) ||
+                (i == *(p_max_class + 4))) {
                 continue;
             }
 
-            if (pfProb[i] > *(pfMaxProb + j)) {
-                *(pfMaxProb + j) = pfProb[i];
-                *(pMaxClass + j) = i;
+            if (p_prob[i] > *(p_max_prob + j)) {
+                *(p_max_prob + j) = p_prob[i];
+                *(p_max_class + j) = i;
             }
         }
     }
@@ -76,7 +76,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
     // Load image
     cv::Mat orig_img = imread(image_path, cv::IMREAD_COLOR);
     if (!orig_img.data) {
-        printf("cv::imread %s fail!\n", image_path.c_str());
+        d_rknn_plugin_error("cv::imread %s fail!\n", image_path.c_str());
         return -1;
     }
 
@@ -85,7 +85,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
 
     cv::Mat img = orig_img_rgb.clone();
     if (orig_img.cols != MODEL_IN_WIDTH || orig_img.rows != MODEL_IN_HEIGHT) {
-        printf("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
+        d_rknn_plugin_warn("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
         cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), 0, 0, cv::INTER_LINEAR);
     }
 
@@ -114,17 +114,19 @@ static int rknn_plugin_release(struct ThreadData *td, struct InputUnit *input_un
 static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_unit) {
     d_rknn_plugin_info("plugin print output data")
     // 收集测试结果
-    for (int i = 0; i < 1; i++) {
-        uint32_t MaxClass[5];
-        float fMaxProb[5];
-        float *buffer = (float *) output_unit->outputs[i].buf;
-        uint32_t sz = output_unit->outputs[i].size / 4;
+    for (int i = 0; i < output_unit->n_outputs; i++) {
+        uint32_t max_class[5];
+        float max_prob[5];
+        rknn_plugin_get_top(
+                (float *) output_unit->outputs[i].buf,
+                max_prob,
+                max_class,
+                output_unit->outputs[i].size / 4,
+                5);
 
-        rknn_plugin_GetTop(buffer, fMaxProb, MaxClass, sz, 5);
-
-        printf(" --- Top5 ---\n");
-        for (int i = 0; i < 5; i++) {
-            printf("%3d: %8.6f\n", MaxClass[i], fMaxProb[i]);
+        d_rknn_plugin_info(" --- Top5 ---");
+        for (int j = 0; j < 5; j++) {
+            d_rknn_plugin_info("%3d: %8.6f\n", max_class[j], max_prob[j]);
         }
     }
     return 0;

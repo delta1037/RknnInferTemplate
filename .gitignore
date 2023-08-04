@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 cmake-build-debug/
 .idea/
+3rdparty/opencv/**
