@@ -35,9 +35,10 @@ void Logger::log_msg_file(short level, std::string &message) {
     output_file_fd.open(log_filename, std::ios_base::app);
 
     time_t now = time(nullptr);
-    char *ct = ctime(&now);
-    ct[strcspn(ct, "\n")] = '\0';
-    output_file_fd << ct << " " << get_level_str(level) << " " << message << std::endl;
+    struct tm *local_time = localtime(&now);
+    char time_buffer[32];
+    strftime(time_buffer, 80, "%Y-%m-%d %H:%M:%S", local_time);
+    output_file_fd << time_buffer << " " << get_level_str(level) << " " << message << std::endl;
     output_file_fd.close();
 }
 
@@ -50,9 +51,10 @@ void Logger::log_msg_plain(short level, std::string &message) {
 
 void Logger::log_msg_screen(short level, std::string &message) {
     time_t now = time(nullptr);
-    char *ct = ctime(&now);
-    ct[strcspn(ct, "\n")] = '\0';
-    std::cout << ct << " " << get_level_str(level) << " " << message << std::endl;
+    struct tm *local_time = localtime(&now);
+    char time_buffer[32];
+    strftime(time_buffer, 80, "%Y-%m-%d %H:%M:%S", local_time);
+    std::cout << time_buffer << " " << get_level_str(level) << " " << message << std::endl;
 }
 
 bool Logger::is_greater_than_level(short level) {
