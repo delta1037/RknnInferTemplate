@@ -50,6 +50,28 @@ struct ThreadData {
     PluginStruct *plugin;
 };
 
+// 插件配置
+struct PluginConfigGet{
+    // 输入线程个数
+    uint32_t input_thread_nums;
+    // 输出线程个数
+    uint32_t output_thread_nums;
+
+    // 是否需要输出float类型的输出结果
+    bool output_want_float;
+};
+
+struct PluginConfigSet{
+    // 模型版本
+    rknn_sdk_version sdk_version;
+    // 输入输出个数
+    rknn_input_output_num io_num;
+    // 输入特征
+    rknn_tensor_attr input_attr;
+    // 输出特征
+    rknn_tensor_attr output_attr;
+};
+
 // 插件接口格式定义
 struct PluginStruct {
     // 插件名称
@@ -57,8 +79,11 @@ struct PluginStruct {
     // 插件版本
     int plugin_version;
 
-    // 插件启动配置
-    int (*rknn_infer_config)(uint32_t *input_nums, uint32_t *output_nums);
+    // 从插件中获取调度配置
+    int (*get_config)(PluginConfigGet *plugin_config);
+
+    // 给插件设置运行配置
+    int (*set_config)(PluginConfigSet *plugin_config);
 
     // 插件初始化
     int (*init)(struct ThreadData *);

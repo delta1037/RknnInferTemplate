@@ -10,10 +10,11 @@
 #include "rknn_api.h"
 #include "rknn_matmul_api.h"
 #include "utils.h"
+#include "rknn_infer_api.h"
 
 class RknnModel {
 public:
-    explicit RknnModel(const std::string &model_path, bool show_model=false);
+    explicit RknnModel(const std::string &model_path, PluginConfigSet &plugin_config_set, bool show_model=false);
     ~RknnModel();
 
     // 检查初始化

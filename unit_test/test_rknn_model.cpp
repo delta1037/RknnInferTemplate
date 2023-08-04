@@ -94,7 +94,8 @@ int test_rknn_model(){
         cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), 0, 0, cv::INTER_LINEAR);
     }
 
-    RknnModel model(model_path, true);
+    PluginConfigSet m_plugin_set_config{};
+    RknnModel model(model_path, m_plugin_set_config, true);
 
     auto *input_unit = new InputUnit();
     input_unit->n_inputs = 1;

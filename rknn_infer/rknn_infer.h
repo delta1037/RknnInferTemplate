@@ -114,6 +114,10 @@ private:
 #ifdef PERFORMANCE_STATISTIC
     StaticStruct m_statistic;
 #endif
+    // 插件程序给调度程序的配置
+    PluginConfigGet m_plugin_get_config{};
+    // 调度程序给插件程序的配置
+    PluginConfigSet m_plugin_set_config{};
     // 调度队列
     std::vector<std::thread> m_infer_proc_ctrl;
     std::vector<ThreadData> m_infer_proc_meta;

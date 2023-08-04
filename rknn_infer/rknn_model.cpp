@@ -39,7 +39,7 @@ static void dump_tensor_attr(rknn_tensor_attr* attr) {
            get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
 }
 
-RknnModel::RknnModel(const std::string &model_path, bool show_model) {
+RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_config_set, bool show_model) {
     // 初始化变量
     init = false;
     rk_model_ctx = 0;
@@ -58,42 +58,53 @@ RknnModel::RknnModel(const std::string &model_path, bool show_model) {
     }
 
     // 模型信息打印
-    if(show_model){
-        // Get Model Input Output Info
-        rknn_input_output_num io_num;
-        ret = rknn_query(rk_model_ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
+    rknn_sdk_version version;
+    ret = rknn_query(rk_model_ctx, RKNN_QUERY_SDK_VERSION, &version, sizeof(rknn_sdk_version));
+    if (ret < 0) {
+        d_rknn_model_error("rknn_init error ret=%d\n", ret);
+        return;
+    }
+    memcpy(&plugin_config_set.sdk_version, &version, sizeof(rknn_sdk_version));
+    CHECK(show_model, true, d_rknn_model_info("sdk version: %s driver version: %s\n", version.api_version, version.drv_version));
+
+    rknn_input_output_num io_num;
+    ret = rknn_query(rk_model_ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
+    if (ret != RKNN_SUCC) {
+        d_rknn_model_error("rknn_query fail! ret=%d", ret)
+        return;
+    }
+    plugin_config_set.io_num = io_num;
+    CHECK(show_model, true, d_rknn_model_info("m_model input num: %d, output num: %d", io_num.n_input, io_num.n_output))
+
+    CHECK(show_model, true, d_rknn_model_info("input tensors:"))
+    rknn_tensor_attr input_attrs[io_num.n_input];
+    memset(input_attrs, 0, sizeof(input_attrs));
+    for (int i = 0; i < io_num.n_input; i++) {
+        input_attrs[i].index = i;
+        ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
         if (ret != RKNN_SUCC) {
-            d_rknn_model_error("rknn_query fail! ret=%d", ret)
+            d_rknn_model_error("rknn_query fail! ret=%d", ret);
+
             return;
         }
-        d_rknn_model_info("m_model input num: %d, output num: %d", io_num.n_input, io_num.n_output);
-
-        d_rknn_model_info("input tensors:");
-        rknn_tensor_attr input_attrs[io_num.n_input];
-        memset(input_attrs, 0, sizeof(input_attrs));
-        for (int i = 0; i < io_num.n_input; i++) {
-            input_attrs[i].index = i;
-            ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
-            if (ret != RKNN_SUCC) {
-                d_rknn_model_error("rknn_query fail! ret=%d", ret);
-                return;
-            }
-            dump_tensor_attr(&(input_attrs[i]));
-        }
-
-        d_rknn_model_info("output tensors:");
-        rknn_tensor_attr output_attrs[io_num.n_output];
-        memset(output_attrs, 0, sizeof(output_attrs));
-        for (int i = 0; i < io_num.n_output; i++) {
-            output_attrs[i].index = i;
-            ret = rknn_query(rk_model_ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]), sizeof(rknn_tensor_attr));
-            if (ret != RKNN_SUCC) {
-                d_rknn_model_error("rknn_query fail! ret=%d", ret);
-                return;
-            }
-            dump_tensor_attr(&(output_attrs[i]));
-        }
+        CHECK(show_model, true, dump_tensor_attr(&(input_attrs[i]));)
     }
+    memcpy(&plugin_config_set.input_attr, &input_attrs[0], sizeof(input_attrs));
+
+    CHECK(show_model, true, d_rknn_model_info("output tensors:"))
+
+    rknn_tensor_attr output_attrs[io_num.n_output];
+    memset(output_attrs, 0, sizeof(output_attrs));
+    for (int i = 0; i < io_num.n_output; i++) {
+        output_attrs[i].index = i;
+        ret = rknn_query(rk_model_ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]), sizeof(rknn_tensor_attr));
+        if (ret != RKNN_SUCC) {
+            d_rknn_model_error("rknn_query fail! ret=%d", ret);
+            return;
+        }
+        CHECK(show_model, true, dump_tensor_attr(&(output_attrs[i]));)
+    }
+    memcpy(&plugin_config_set.output_attr, &output_attrs[0], sizeof(input_attrs));
     d_rknn_model_info("rknn m_model init success! rk_model_ctx：%lu", rk_model_ctx)
     init = true;
 }

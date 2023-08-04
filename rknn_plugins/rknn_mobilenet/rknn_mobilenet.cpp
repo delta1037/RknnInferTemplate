@@ -8,16 +8,16 @@
 /* 包含定义插件必须的头文件 */
 #include <string>
 #include <cstring>
-#include <cstdio>
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
 
 #include "rknn_api.h"
-#include "rknn_matmul_api.h"
-
 #include "rknn_infer_api.h"
 #include "utils_log.h"
+
+// 插件全局配置信息，由调度程序给插件传来的信息
+PluginConfigSet g_plugin_config_set;
 
 // 插件私有变量定义
 struct plugin_private_data {
@@ -54,9 +54,20 @@ static int rknn_plugin_get_top(
     return 1;
 }
 
-static int rknn_plugin_infer_config(uint32_t *input_nums, uint32_t *output_nums){
-    *input_nums = 1;
-    *output_nums = 1;
+static int get_config(PluginConfigGet *plugin_config){
+    // 输入线程个数
+    plugin_config->input_thread_nums = 1;
+    // 输出线程个数
+    plugin_config->output_thread_nums = 1;
+    // 是否需要输出float类型的输出结果
+    plugin_config->output_want_float = true;
+    return 0;
+}
+
+static int set_config(PluginConfigSet *plugin_config){
+    // 注意拷贝构造函数
+    memcpy(&g_plugin_config_set, plugin_config, sizeof(PluginConfigSet));
+    d_rknn_plugin_info("plugin config set success")
     return 0;
 }
 
@@ -89,7 +100,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
         cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), 0, 0, cv::INTER_LINEAR);
     }
 
-    input_unit->n_inputs = 1;
+    input_unit->n_inputs = g_plugin_config_set.io_num.n_input;
     input_unit->inputs = (rknn_input*)malloc(input_unit->n_inputs * sizeof(rknn_input));
     memset(input_unit->inputs, 0, input_unit->n_inputs * sizeof(rknn_input));
 
@@ -137,7 +148,8 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
 static struct PluginStruct rknn_mobilenet = {
         .plugin_name 		= "rknn_mobilenet",
         .plugin_version 	= 1,
-        .rknn_infer_config  = rknn_plugin_infer_config,
+        .get_config         = get_config,
+        .set_config         = set_config,
         .init				= rknn_plugin_init,
         .uninit 			= rknn_plugin_uninit,
         .rknn_input 		= rknn_plugin_input,

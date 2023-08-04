@@ -21,39 +21,43 @@ RknnInfer::RknnInfer(const std::string &model_name, const std::string &plugin_na
     }
 
     // 获取插件配置
-    uint32_t input_thread_nums = 1;
-    uint32_t output_thread_nums = 1;
-    if (0 != plugin->rknn_infer_config(&input_thread_nums, &output_thread_nums)) {
-        d_rknn_infer_error("rknn_infer_config failed")
+    if (0 != plugin->get_config(&m_plugin_get_config)) {
+        d_rknn_infer_error("get_config failed")
         return;
     }
-    d_rknn_infer_info("rknn config, input nums:%d, output nums:%d", input_thread_nums, output_thread_nums)
+    d_rknn_infer_info("rknn config, input nums:%d, output nums:%d", m_plugin_get_config.input_thread_nums, m_plugin_get_config.output_thread_nums)
 
     // 初始化模型
 #ifdef PERFORMANCE_STATISTIC
     time_unit t_model_init = get_time_of_ms();
 #endif
-    for(int idx = 0; idx < output_thread_nums; ++idx){
+    for(int idx = 0; idx < m_plugin_get_config.output_thread_nums; ++idx){
         if(idx == 0){
-            m_rknn_models.emplace_back(new RknnModel(model_name));
+            m_rknn_models.emplace_back(new RknnModel(model_name, m_plugin_set_config));
         }
         else{
             m_rknn_models.emplace_back(m_rknn_models[0]->model_infer_dup());
         }
     }
 #ifdef PERFORMANCE_STATISTIC
-    m_statistic.s_model_init_count = output_thread_nums;
+    m_statistic.s_model_init_count = m_plugin_get_config.output_thread_nums;
     m_statistic.s_model_init_ms = get_time_of_ms() - t_model_init;
 #endif
-    for(int idx = 0; idx < output_thread_nums; ++idx){
+    for(int idx = 0; idx < m_plugin_get_config.output_thread_nums; ++idx){
         if(!m_rknn_models[idx]->check_init()){
             d_rknn_infer_error("rknn model %d init failed", idx)
             return;
         }
     }
 
+    // 调度之前给插件传递配置信息
+    if (0 != plugin->set_config(&m_plugin_set_config)) {
+        d_rknn_infer_error("set_config failed")
+        return;
+    }
+
     // 启动输出处理线程
-    for (int idx = 0; idx < output_thread_nums; ++idx) {
+    for (int idx = 0; idx < m_plugin_get_config.output_thread_nums; ++idx) {
         ThreadData td_data{};
         td_data.plugin = plugin;
         td_data.thread_id = idx;
@@ -63,7 +67,7 @@ RknnInfer::RknnInfer(const std::string &model_name, const std::string &plugin_na
     }
 
     // 启动输入接收线程
-    for (int idx = 0; idx < input_thread_nums; ++idx) {
+    for (int idx = 0; idx < m_plugin_get_config.input_thread_nums; ++idx) {
         ThreadData td_data{};
         td_data.plugin = plugin;
         td_data.thread_id = idx;
@@ -137,7 +141,7 @@ void RknnInfer::input_data_thread(uint32_t idx) {
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_plugin_input_ms = get_time_of_ms();
 #endif
-        struct InputUnit *input_unit = new InputUnit();
+        auto *input_unit = new InputUnit();
         if (0 != td_data.plugin->rknn_input(&td_data, input_unit)) {
             d_rknn_infer_error("rknn_infer_get_input_data failed")
             continue;
@@ -209,14 +213,13 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
         }
 #endif
 //        auto output_unit = new OutputUnit();
-        struct OutputUnit *output_unit = new OutputUnit();
-        output_unit->n_outputs = 1;
+        auto *output_unit = new OutputUnit();
+        output_unit->n_outputs = m_plugin_set_config.io_num.n_output;
         output_unit->outputs = (rknn_output*)malloc(output_unit->n_outputs * sizeof(rknn_output));
         memset(output_unit->outputs, 0, output_unit->n_outputs * sizeof(rknn_output));
-        output_unit->outputs[0].want_float = 1;
-//        for(int i = 0; i < output_unit->n_outputs; i++){
-//            output_unit->outputs[i].want_float = true;
-//        }
+        for(int i = 0; i < output_unit->n_outputs; i++){
+            output_unit->outputs[i].want_float = m_plugin_get_config.output_want_float ? 1 : 0;
+        }
 
         // 推理
 #ifdef PERFORMANCE_STATISTIC

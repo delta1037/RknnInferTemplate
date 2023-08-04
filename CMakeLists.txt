@@ -86,8 +86,9 @@ target_link_libraries(test_rknn_model
 
 # 图像图例插件示例
 # https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_mobilenet_demo
+# include_directories(${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet/)
 add_library(rknn_mobilenet SHARED
-    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet.cpp
+    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet/rknn_mobilenet.cpp
     ${DLOG_SRC}
 )
 target_link_libraries(rknn_mobilenet
@@ -95,4 +96,14 @@ target_link_libraries(rknn_mobilenet
     ${RKNN_DIR}/lib/librknn_api.so
     ${RKNN_DIR}/lib/librknnrt.so
 )
-
+# https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_yolov5_demo
+#include_directories(${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolov5/)
+#add_library(rknn_yolov5 SHARED
+#        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolov5/rknn_yolov5.cpp
+#        ${DLOG_SRC}
+#        )
+#target_link_libraries(rknn_yolov5
+#        ${OpenCV_LIBS}
+#        ${RKNN_DIR}/lib/librknn_api.so
+#        ${RKNN_DIR}/lib/librknnrt.so
+#        )

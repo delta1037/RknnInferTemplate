@@ -112,10 +112,16 @@ struct PluginStruct *get_plugin(const std::string &plugin_name){
         d_rknn_plugin_error("plugin_name is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
     }
-    if (it_find->rknn_infer_config == nullptr){
-        d_rknn_plugin_error("plugin rknn_infer_config is nullptr! plugin_name=%s", plugin_name.c_str())
+
+    if (it_find->get_config == nullptr){
+        d_rknn_plugin_error("plugin get_config is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
     }
+    if (it_find->set_config == nullptr){
+        d_rknn_plugin_error("plugin set_config is nullptr! plugin_name=%s", plugin_name.c_str())
+        return nullptr;
+    }
+
     if(it_find->init == nullptr){
         d_rknn_plugin_error("plugin init is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
@@ -124,6 +130,7 @@ struct PluginStruct *get_plugin(const std::string &plugin_name){
         d_rknn_plugin_error("plugin uninit is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
     }
+
     if (it_find->rknn_input == nullptr){
         d_rknn_plugin_error("plugin rknn_input is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
@@ -132,6 +139,7 @@ struct PluginStruct *get_plugin(const std::string &plugin_name){
         d_rknn_plugin_error("plugin rknn_input_release is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
     }
+
     if (it_find->rknn_output == nullptr){
         d_rknn_plugin_error("plugin rknn_infer is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;
