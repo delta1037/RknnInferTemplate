@@ -10,11 +10,11 @@
 
 extern bool g_system_running;
 
-RknnInfer::RknnInfer(const std::string &model_name) {
+RknnInfer::RknnInfer(const std::string &model_name, const std::string &plugin_name) {
     // 初始化变量
     m_init = false;
     // 加载插件
-    PluginStruct *plugin = get_plugin((char *) model_name.c_str());
+    PluginStruct *plugin = get_plugin(plugin_name);
     if (plugin == nullptr) {
         d_rknn_infer_error("load plugin failed")
         return;
@@ -27,6 +27,7 @@ RknnInfer::RknnInfer(const std::string &model_name) {
         d_rknn_infer_error("rknn_infer_config failed")
         return;
     }
+    d_rknn_infer_info("rknn config, input nums:%d, output nums:%d", input_thread_nums, output_thread_nums)
 
     // 初始化模型
 #ifdef PERFORMANCE_STATISTIC
@@ -34,9 +35,10 @@ RknnInfer::RknnInfer(const std::string &model_name) {
 #endif
     for(int idx = 0; idx < output_thread_nums; ++idx){
         if(idx == 0){
-            m_rknn_model.emplace_back(RknnModel(model_name));
-        }else{
-            m_rknn_model.emplace_back(m_rknn_model[0].model_infer_dup());
+            m_rknn_models.emplace_back(new RknnModel(model_name));
+        }
+        else{
+            m_rknn_models.emplace_back(m_rknn_models[0]->model_infer_dup());
         }
     }
 #ifdef PERFORMANCE_STATISTIC
@@ -44,7 +46,7 @@ RknnInfer::RknnInfer(const std::string &model_name) {
     m_statistic.s_model_init_ms = get_time_of_ms() - t_model_init;
 #endif
     for(int idx = 0; idx < output_thread_nums; ++idx){
-        if(!m_rknn_model[idx].check_init()){
+        if(!m_rknn_models[idx]->check_init()){
             d_rknn_infer_error("rknn model %d init failed", idx)
             return;
         }
@@ -135,8 +137,8 @@ void RknnInfer::input_data_thread(uint32_t idx) {
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_plugin_input_ms = get_time_of_ms();
 #endif
-        auto unit = new InputUnit();
-        if (0 != td_data.plugin->rknn_input(&td_data, unit)) {
+        struct InputUnit *input_unit = new InputUnit();
+        if (0 != td_data.plugin->rknn_input(&td_data, input_unit)) {
             d_rknn_infer_error("rknn_infer_get_input_data failed")
             continue;
         }
@@ -153,7 +155,7 @@ void RknnInfer::input_data_thread(uint32_t idx) {
 #ifdef PERFORMANCE_STATISTIC
         pack.s_pack_record_ms = get_time_of_ms();
 #endif
-        pack.input_unit = unit;
+        pack.input_unit = input_unit;
         put_input_unit(pack);
     }
 
@@ -206,19 +208,21 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
             m_statistic.s_queue_ms += get_time_of_ms() - pack.s_pack_record_ms;
         }
 #endif
-        auto output_unit = new OutputUnit();
-        output_unit->n_outputs = pack.input_unit->n_inputs;
-        output_unit->outputs = new rknn_output[output_unit->n_outputs];
+//        auto output_unit = new OutputUnit();
+        struct OutputUnit *output_unit = new OutputUnit();
+        output_unit->n_outputs = 1;
+        output_unit->outputs = (rknn_output*)malloc(output_unit->n_outputs * sizeof(rknn_output));
         memset(output_unit->outputs, 0, output_unit->n_outputs * sizeof(rknn_output));
-        for(int i = 0; i < output_unit->n_outputs; i++){
-            output_unit->outputs[i].want_float = true;
-        }
+        output_unit->outputs[0].want_float = 1;
+//        for(int i = 0; i < output_unit->n_outputs; i++){
+//            output_unit->outputs[i].want_float = true;
+//        }
 
         // 推理
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_model_infer = get_time_of_ms();
 #endif
-        ret = m_rknn_model[idx].model_infer_sync(
+        ret = m_rknn_models[idx]->model_infer_sync(
                 pack.input_unit->n_inputs,
                 pack.input_unit->inputs,
                 output_unit->n_outputs,
@@ -254,7 +258,7 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_model_infer_release = get_time_of_ms();
 #endif
-        ret = m_rknn_model[idx].model_infer_release(output_unit->n_outputs, output_unit->outputs);
+        ret = m_rknn_models[idx]->model_infer_release(output_unit->n_outputs, output_unit->outputs);
         if (ret != RetStatus::RET_STATUS_SUCCESS){
             d_rknn_infer_error("model_infer_release failed")
             continue;
@@ -282,10 +286,10 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
         }
 #endif
         // 释放输出
-        delete output_unit->outputs;
-        delete output_unit;
+        free(output_unit->outputs);
+        free(output_unit);
         // 释放输入
-        delete pack.input_unit;
+//        delete pack.input_unit;
     }
 
     // 插件反初始化

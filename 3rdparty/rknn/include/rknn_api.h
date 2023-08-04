@@ -40,7 +40,7 @@ extern "C" {
 #define RKNN_FLAG_ASYNC_MASK                    0x00000004
 
 /* collect performance mode.
-   when enable, you can get detailed performance reports via rknn_query(ctx, RKNN_QUERY_PERF_DETAIL, ...),
+   when enable, you can get detailed performance reports via rknn_query(rk_model_ctx, RKNN_QUERY_PERF_DETAIL, ...),
    but it will reduce the frame rate. */
 #define RKNN_FLAG_COLLECT_PERF_MASK             0x00000008
 
@@ -573,7 +573,7 @@ int rknn_outputs_release(rknn_context context, uint32_t n_ouputs, rknn_output ou
     initialize tensor memory from physical address.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         uint64_t phys_addr          physical address.
         void *virt_addr             virtual address.
         uint32_t size               the size of tensor buffer.
@@ -588,7 +588,7 @@ rknn_tensor_mem* rknn_create_mem_from_phys(rknn_context ctx, uint64_t phys_addr,
     initialize tensor memory from file description.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         int32_t fd                  file description.
         void *virt_addr             virtual address.
         uint32_t size               the size of tensor buffer.
@@ -604,7 +604,7 @@ rknn_tensor_mem* rknn_create_mem_from_fd(rknn_context ctx, int32_t fd, void *vir
     create tensor memory from mb_blk.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         void *mb_blk                mb_blk allocate from system api.
         int32_t offset              indicates the offset of the memory.
     return:
@@ -618,7 +618,7 @@ rknn_tensor_mem* rknn_create_mem_from_mb_blk(rknn_context ctx, void *mb_blk, int
     create tensor memory.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         uint32_t size               the size of tensor buffer.
     return:
         rknn_tensor_mem             the pointer of tensor memory information.
@@ -631,7 +631,7 @@ rknn_tensor_mem* rknn_create_mem(rknn_context ctx, uint32_t size);
     destroy tensor memory.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         rknn_tensor_mem *mem        the pointer of tensor memory information.
     return:
         int                         error code
@@ -644,7 +644,7 @@ int rknn_destroy_mem(rknn_context ctx, rknn_tensor_mem *mem);
     set the weight memory.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         rknn_tensor_mem *mem        the array of tensor memory information
     return:
         int                         error code.
@@ -657,7 +657,7 @@ int rknn_set_weight_mem(rknn_context ctx, rknn_tensor_mem *mem);
     set the internal memory.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         rknn_tensor_mem *mem        the array of tensor memory information
     return:
         int                         error code.
@@ -670,7 +670,7 @@ int rknn_set_internal_mem(rknn_context ctx, rknn_tensor_mem *mem);
     set the input and output tensors buffer.
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         rknn_tensor_mem *mem        the array of tensor memory information.
         rknn_tensor_attr *attr      the attribute of input or output tensor buffer.
     return:
@@ -683,7 +683,7 @@ int rknn_set_io_mem(rknn_context ctx, rknn_tensor_mem *mem, rknn_tensor_attr *at
     set the input tensor shape (only valid for dynamic shape rknn model).
 
     input:
-        rknn_context ctx            the handle of context.
+        rknn_context rk_model_ctx            the handle of context.
         rknn_tensor_attr *attr      the attribute of input or output tensor buffer.
     return:
         int                         error code.

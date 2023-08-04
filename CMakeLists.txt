@@ -1,10 +1,12 @@
 # CMake版本
-cmake_minimum_required(VERSION 3.22.1)
+cmake_minimum_required(VERSION 3.16.3)
 # C++版本
 set(CMAKE_CXX_STANDARD 17)
 # 指定运行时加载路径位置
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_CXX_FLAGS "-finput-charset=UTF-8 -Wl,-rpath=./:./lib")
+SET(CMAKE_CXX_FLAGS "-Wl,-rpath=./:./lib")
+SET(CMAKE_CXX_FLAGS "-Wl,-E")
+set(CMAKE_INSTALL_RPATH "./:./lib")
 # 选项-本地测试（不依赖 rknn，空转）
 SET(ENABLE_LOCAL_TEST FALSE)
 # 选项-性能统计
@@ -15,11 +17,25 @@ project(rknn_infer)
 # 插件
 project(plugin_rknn_image)
 
+project(test_rknn_model)
+
 # 第三方工程
 ## RKNN 推理库
 SET(RKNN_DIR ${CMAKE_SOURCE_DIR}/3rdparty/rknn/)
 link_directories(${RKNN_DIR}/lib)
 include_directories(${RKNN_DIR}/include)
+
+## opencv
+if (CMAKE_SYSTEM_NAME STREQUAL "Android")
+    set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/opencv/OpenCV-android-sdk/sdk/native/jni/abi-${CMAKE_ANDROID_ARCH_ABI})
+else()
+  if(LIB_ARCH STREQUAL "armhf")
+    set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/opencv/opencv-linux-armhf/share/OpenCV)
+  else()
+    set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/../3rdparty/opencv/opencv-linux-aarch64/share/OpenCV)
+  endif()
+endif()
+find_package(OpenCV REQUIRED)
 
 ## 日志记录功能
 SET(DLOG_DIR ${CMAKE_SOURCE_DIR}/3rdparty/dlog/)
@@ -42,21 +58,43 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/utils
 )
 
+#link_libraries(${RKNN_DIR}/lib/librknn_api.so)
+#link_libraries(${RKNN_DIR}/lib/librknnrt.so)
+#link_libraries(pthread dl)
+
 # 推理系统
 add_executable(rknn_infer
     ${CMAKE_SOURCE_DIR}/rknn_infer/main.cpp
     ${CMAKE_SOURCE_DIR}/rknn_infer/rknn_infer.cpp
     ${CMAKE_SOURCE_DIR}/rknn_infer/rknn_model.cpp
     ${CMAKE_SOURCE_DIR}/rknn_infer/plugin_ctrl.cpp
-    ${DIALOG_SRC}
     ${DLOG_SRC}
 )
-find_library(rknn_api rknn_api ${RKNN_DIR}/lib)
-find_library(rknnrt rknnrt ${RKNN_DIR}/lib)
-link_libraries(rknn_infer ${rknn_api} ${rknnrt})
+target_link_libraries(rknn_infer
+    ${RKNN_DIR}/lib/librknn_api.so
+    ${RKNN_DIR}/lib/librknnrt.so
+    pthread
+    dl
+)
 
 # 图像图例插件示例
-add_library(plugin_rknn_image SHARED
-    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_image.cpp
+add_library(rknn_mobilenet SHARED
+    ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_mobilenet.cpp
     ${DLOG_SRC}
 )
+target_link_libraries(rknn_mobilenet
+    ${OpenCV_LIBS}
+    ${RKNN_DIR}/lib/librknn_api.so
+    ${RKNN_DIR}/lib/librknnrt.so
+)
+
+add_executable(test_rknn_model
+        ${CMAKE_SOURCE_DIR}/unit_test/test_rknn_model.cpp
+        ${CMAKE_SOURCE_DIR}/rknn_infer/rknn_model.cpp
+        ${DLOG_SRC}
+        )
+target_link_libraries(test_rknn_model
+        ${OpenCV_LIBS}
+        ${RKNN_DIR}/lib/librknn_api.so
+        ${RKNN_DIR}/lib/librknnrt.so
+        )

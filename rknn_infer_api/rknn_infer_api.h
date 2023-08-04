@@ -6,6 +6,7 @@
  */
 #ifndef RKNN_INFER_RKNN_INFER_API_H
 #define RKNN_INFER_RKNN_INFER_API_H
+
 #include "rknn_api.h"
 #include "rknn_matmul_api.h"
 
@@ -56,12 +57,13 @@ struct PluginStruct {
     // 插件版本
     int plugin_version;
 
+    // 插件启动配置
+    int (*rknn_infer_config)(uint32_t *input_nums, uint32_t *output_nums);
+
     // 插件初始化
     int (*init)(struct ThreadData *);
     // 插件反初始化
     int (*uninit)(struct ThreadData *);
-
-    int (*rknn_infer_config)(uint32_t *input_nums, uint32_t *output_nums);
 
     // 收集输入数据和释放输入资源
     int (*rknn_input)(struct ThreadData *, struct InputUnit *);

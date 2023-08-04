@@ -91,7 +91,7 @@ struct StaticStruct{
 #endif
 class RknnInfer {
 public:
-    explicit RknnInfer(const std::string &model_name);
+    explicit RknnInfer(const std::string &model_name, const std::string &plugin_name);
     RetStatus stop();
 
     // 检查初始化
@@ -118,7 +118,8 @@ private:
     std::vector<std::thread> m_infer_proc_ctrl;
     std::vector<ThreadData> m_infer_proc_meta;
     // 输入调度
-    std::vector<RknnModel> m_rknn_model;
+    std::vector<RknnModel*> m_rknn_models;
+
     std::vector<std::thread> m_input_data_ctrl;
     std::vector<ThreadData> m_input_data_meta;
 

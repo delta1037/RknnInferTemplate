@@ -6,18 +6,20 @@
  */
 #include <string>
 #include <cstring>
+#include <cstdio>
 #include "rknn_model.h"
 #include "utils_log.h"
 
-static unsigned char* load_model(const char* filename, int* model_size){
+static unsigned char* load_model(const char* filename, int* model_size)
+{
     FILE* fp = fopen(filename, "rb");
     if (fp == nullptr) {
         printf("fopen %s fail!\n", filename);
         return nullptr;
     }
     fseek(fp, 0, SEEK_END);
-    int model_len = (int)ftell(fp);
-    auto* model     = (unsigned char*)malloc(model_len);
+    int model_len = ftell(fp);
+    auto* model = (unsigned char*)malloc(model_len);
     fseek(fp, 0, SEEK_SET);
     if (model_len != fread(model, 1, model_len, fp)) {
         printf("fread %s fail!\n", filename);
@@ -29,10 +31,9 @@ static unsigned char* load_model(const char* filename, int* model_size){
     return model;
 }
 
-static void dump_tensor_attr(rknn_tensor_attr* attr)
-{
+static void dump_tensor_attr(rknn_tensor_attr* attr) {
     d_rknn_model_info("index=%d, name=%s, n_dims=%d, dims=[%d, %d, %d, %d], n_elems=%d, size=%d, fmt=%s, type=%s, qnt_type=%s, "
-           "zp=%d, scale=%f\n",
+           "zp=%d, scale=%f",
            attr->index, attr->name, attr->n_dims, attr->dims[0], attr->dims[1], attr->dims[2], attr->dims[3],
            attr->n_elems, attr->size, get_format_string(attr->fmt), get_type_string(attr->type),
            get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
@@ -41,7 +42,7 @@ static void dump_tensor_attr(rknn_tensor_attr* attr)
 RknnModel::RknnModel(const std::string &model_path, bool show_model) {
     // 初始化变量
     init = false;
-    ctx = 0;
+    rk_model_ctx = 0;
 
     // rknn 模型初始化
     int model_len = 0;
@@ -50,75 +51,78 @@ RknnModel::RknnModel(const std::string &model_path, bool show_model) {
         d_rknn_model_error("load m_model fail!")
         return;
     }
-    int ret = rknn_init(&ctx, m_model, model_len, RKNN_FLAG_PRIOR_HIGH, nullptr);
+    int ret = rknn_init(&rk_model_ctx, m_model, model_len, 0, nullptr);
     if(ret != 0) {
         d_rknn_model_error("rknn_init fail! ret=%d", ret)
         return;
     }
 
+    // 模型信息打印
     if(show_model){
         // Get Model Input Output Info
         rknn_input_output_num io_num;
-        ret = rknn_query(ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
+        ret = rknn_query(rk_model_ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
         if (ret != RKNN_SUCC) {
-            d_rknn_model_error("rknn_query fail! ret=%d\n", ret)
+            d_rknn_model_error("rknn_query fail! ret=%d", ret)
             return;
         }
-        d_rknn_model_info("m_model input num: %d, output num: %d\n", io_num.n_input, io_num.n_output);
+        d_rknn_model_info("m_model input num: %d, output num: %d", io_num.n_input, io_num.n_output);
 
-        d_rknn_model_info("input tensors:\n");
+        d_rknn_model_info("input tensors:");
         rknn_tensor_attr input_attrs[io_num.n_input];
         memset(input_attrs, 0, sizeof(input_attrs));
         for (int i = 0; i < io_num.n_input; i++) {
             input_attrs[i].index = i;
-            ret = rknn_query(ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
+            ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
             if (ret != RKNN_SUCC) {
-                d_rknn_model_error("rknn_query fail! ret=%d\n", ret);
+                d_rknn_model_error("rknn_query fail! ret=%d", ret);
                 return;
             }
             dump_tensor_attr(&(input_attrs[i]));
         }
 
-        d_rknn_model_info("output tensors:\n");
+        d_rknn_model_info("output tensors:");
         rknn_tensor_attr output_attrs[io_num.n_output];
         memset(output_attrs, 0, sizeof(output_attrs));
         for (int i = 0; i < io_num.n_output; i++) {
             output_attrs[i].index = i;
-            ret = rknn_query(ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]), sizeof(rknn_tensor_attr));
+            ret = rknn_query(rk_model_ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]), sizeof(rknn_tensor_attr));
             if (ret != RKNN_SUCC) {
-                d_rknn_model_error("rknn_query fail! ret=%d\n", ret);
+                d_rknn_model_error("rknn_query fail! ret=%d", ret);
                 return;
             }
             dump_tensor_attr(&(output_attrs[i]));
         }
     }
-    d_rknn_model_info("rknn m_model init success!")
+    d_rknn_model_info("rknn m_model init success! rk_model_ctx：%lu", rk_model_ctx)
     init = true;
 }
 
-RknnModel RknnModel::model_infer_dup() const {
-    return RknnModel(this->ctx);
+RknnModel *RknnModel::model_infer_dup() const {
+    return new RknnModel(this->rk_model_ctx);
 }
 
 RknnModel::RknnModel(rknn_context ctx) {
     // 初始化变量
     init = false;
-    this->ctx = 0;
+    this->rk_model_ctx = 0;
 
     // 复制 rknn 模型， 做权重复用
-    int ret = rknn_dup_context(&ctx, &this->ctx);
+    int ret = rknn_dup_context(&ctx, &this->rk_model_ctx);
     if (ret != RKNN_SUCC){
-        d_rknn_model_error("rknn_dup_context fail! ret=%d", ret)
+        d_rknn_model_error("rknn dup model fail! ret=%d", ret)
         return;
     }
+    d_rknn_model_error("rknn dup model success!")
     init = true;
 }
 
 
 RknnModel::~RknnModel() {
     // 销毁 rknn 模型
-    if(ctx != 0){
-        rknn_destroy(ctx);
+    if(rk_model_ctx != 0){
+        rknn_destroy(rk_model_ctx);
+        rk_model_ctx = 0;
     }
     if(m_model != nullptr){
         free(m_model);
@@ -133,31 +137,34 @@ RetStatus RknnModel::model_infer_sync(
         uint32_t n_inputs, rknn_input *inputs,
         uint32_t n_outputs, rknn_output *outputs
         ) const {
-    // 设置输入
-    int ret = rknn_inputs_set(ctx, n_inputs, inputs);
-    if (ret != RKNN_SUCC){
-        d_rknn_model_error("rknn_inputs_set fail! ret=%d", ret)
-        return RetStatus::RET_STATUS_FAILED;
+    d_rknn_model_debug("rknn_inputs_set rk_model_ctx=%lu, n_inputs:%u, inputs:%p", rk_model_ctx, n_inputs, inputs)
+    d_rknn_model_debug("rknn_inputs index: %d", inputs[0].index)
+    d_rknn_model_debug("rknn_inputs type: %d", inputs[0].type)
+    d_rknn_model_debug("rknn_inputs size: %d", inputs[0].size)
+    d_rknn_model_debug("rknn_inputs fmt: %d", inputs[0].fmt)
+    int ret = rknn_inputs_set(rk_model_ctx, n_inputs, inputs);
+    if (ret < 0) {
+        d_rknn_model_error("rknn_input_set fail! ret=%d", ret);
+        return RET_STATUS_FAILED;
     }
 
-    // 运行模型
-    ret = rknn_run(ctx, nullptr);
-    if (ret != RKNN_SUCC){
-        d_rknn_model_error("rknn_run fail! ret=%d", ret)
-        return RetStatus::RET_STATUS_FAILED;
+    d_rknn_model_debug("rknn_run");
+    ret = rknn_run(rk_model_ctx, nullptr);
+    if (ret < 0) {
+        d_rknn_model_error("rknn_run fail! ret=%d", ret);
+        return RET_STATUS_FAILED;
     }
 
-    // 获取输出
-    ret = rknn_outputs_get(ctx, n_outputs, outputs, nullptr);
-    if(ret != RKNN_SUCC){
-        d_rknn_model_error("rknn_outputs_get fail! ret=%d", ret)
-        return RetStatus::RET_STATUS_FAILED;
+    ret = rknn_outputs_get(rk_model_ctx, n_outputs, outputs, nullptr);
+    if (ret < 0) {
+        d_rknn_model_error("rknn_outputs_get fail! ret=%d", ret);
+        return RET_STATUS_FAILED;
     }
-    return RetStatus::RET_STATUS_SUCCESS;
+    return RET_STATUS_SUCCESS;
 }
 
 RetStatus RknnModel::model_infer_release(uint32_t n_outputs, rknn_output *outputs) const {
-    int ret = rknn_outputs_release(ctx, n_outputs, outputs);
+    int ret = rknn_outputs_release(rk_model_ctx, n_outputs, outputs);
     if(ret != RKNN_SUCC){
         d_rknn_model_error("rknn_outputs_release fail! ret=%d", ret)
     }

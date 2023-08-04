@@ -11,6 +11,6 @@
 #include "rknn_infer_api.h"
 
 // 获取动态库接口
-static struct PluginStruct *get_plugin(char *plugin_name);
+struct PluginStruct *get_plugin(const std::string &plugin_name);
 
 #endif // RKNN_INFER_PLUGIN_CTRL_H

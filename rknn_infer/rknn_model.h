@@ -25,7 +25,7 @@ public:
     RetStatus model_infer_release(uint32_t n_outputs, rknn_output *outputs) const;
 
     // 模型复用
-    [[nodiscard]] RknnModel model_infer_dup() const;
+    [[nodiscard]] RknnModel *model_infer_dup() const;
 
 private:
     // 内部模型上下文拷贝接口
@@ -33,9 +33,7 @@ private:
 private:
     // 初始化记录
     bool init;
-    rknn_context ctx;
-    unsigned char* m_model;
+    rknn_context rk_model_ctx;
+    unsigned char* m_model{};
 };
-
-
 #endif //PLUGIN_RKNN_IMAGE_RKNN_MODEL_H

@@ -27,7 +27,7 @@ enum RetStatus {
 };
 
 /* 获取NS时间 -9 */
-time_unit getTimeOfNs() {
+static time_unit getTimeOfNs() {
     struct timespec tv{};
     clock_gettime(CLOCK_REALTIME, &tv);
     return tv.tv_sec*1000000000 + tv.tv_nsec;
@@ -36,7 +36,7 @@ time_unit getTimeOfNs() {
 #if defined(_WIN32)
 #include <chrono>
 #include <utility>
-int gettimeofday(struct timeval* tp, struct timezone* tzp) {
+static int gettimeofday(struct timeval* tp, struct timezone* tzp) {
     namespace sc = std::chrono;
     sc::system_clock::duration d = sc::system_clock::now().time_since_epoch();
     sc::seconds s = sc::duration_cast<sc::seconds>(d);
@@ -47,21 +47,21 @@ int gettimeofday(struct timeval* tp, struct timezone* tzp) {
 #endif // _WIN32
 
 /* 获取MS时间 -3 */
-time_unit get_time_of_ms(){
+static time_unit get_time_of_ms(){
     struct timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec * (time_unit)1000 + tv.tv_usec / 1000;
 }
 
 /* 获取S时间 */
-time_unit get_time_of_s(){
+static time_unit get_time_of_s(){
     struct timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec;
 }
 
 /* 精确睡眠US时间 */
-void sleepUS(time_unit usec){
+static void sleepUS(time_unit usec){
 #if defined(_WIN32)
     Sleep(usec/1000);
 #else
@@ -70,9 +70,6 @@ void sleepUS(time_unit usec){
     tv.tv_usec = long(usec % 1000000UL);
     errno = 0;
     select(0, nullptr, nullptr, nullptr, &tv);
-    if (errno != 0){
-//        d_utils_info("select error %d", errno)
-    }
 #endif
 }
 

@@ -1,0 +1,156 @@
+/**
+ * @author: bo.liu
+ * @mail: geniusrabbit@qq.com
+ * @date: 2023.08.03
+ * @brief: RKNN 图像推理示例插件，参考 https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_mobilenet_demo 实现
+ */
+
+/* 包含定义插件必须的头文件 */
+#include <string>
+#include <cstring>
+#include <cstdio>
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/imgproc.hpp"
+
+#include "rknn_api.h"
+#include "rknn_matmul_api.h"
+
+#include "rknn_infer_api.h"
+#include "utils_log.h"
+
+// 插件私有变量定义
+struct plugin_private_data {
+
+};
+
+const int MODEL_IN_WIDTH    = 224;
+const int MODEL_IN_HEIGHT   = 224;
+const int MODEL_IN_CHANNELS = 3;
+
+static int rknn_plugin_GetTop(const float* pfProb, float* pfMaxProb, uint32_t* pMaxClass, uint32_t outputCount, uint32_t topNum){
+    uint32_t i, j;
+
+#define MAX_TOP_NUM 20
+    if (topNum > MAX_TOP_NUM)
+        return 0;
+
+    memset(pfMaxProb, 0, sizeof(float) * topNum);
+    memset(pMaxClass, 0xff, sizeof(float) * topNum);
+
+    for (j = 0; j < topNum; j++) {
+        for (i = 0; i < outputCount; i++) {
+            if ((i == *(pMaxClass + 0)) || (i == *(pMaxClass + 1)) || (i == *(pMaxClass + 2)) || (i == *(pMaxClass + 3)) ||
+                (i == *(pMaxClass + 4))) {
+                continue;
+            }
+
+            if (pfProb[i] > *(pfMaxProb + j)) {
+                *(pfMaxProb + j) = pfProb[i];
+                *(pMaxClass + j) = i;
+            }
+        }
+    }
+    return 1;
+}
+
+static int rknn_plugin_infer_config(uint32_t *input_nums, uint32_t *output_nums){
+    *input_nums = 1;
+    *output_nums = 1;
+    return 0;
+}
+
+static int rknn_plugin_init(struct ThreadData *td) {
+    return 0;
+}
+
+static int rknn_plugin_uninit(struct ThreadData *td) {
+    return 0;
+}
+
+static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit) {
+    // 根据td来收集输入源（多线程收集）
+    d_rknn_plugin_debug("plugin read input data")
+    std::string image_path = "model/dog_224x224.jpg";
+
+    // Load image
+    cv::Mat orig_img = imread(image_path, cv::IMREAD_COLOR);
+    if (!orig_img.data) {
+        printf("cv::imread %s fail!\n", image_path.c_str());
+        return -1;
+    }
+
+    cv::Mat orig_img_rgb;
+    cv::cvtColor(orig_img, orig_img_rgb, cv::COLOR_BGR2RGB);
+
+    cv::Mat img = orig_img_rgb.clone();
+    if (orig_img.cols != MODEL_IN_WIDTH || orig_img.rows != MODEL_IN_HEIGHT) {
+        printf("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
+        cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), 0, 0, cv::INTER_LINEAR);
+    }
+
+    input_unit->n_inputs = 1;
+    input_unit->inputs = (rknn_input*)malloc(input_unit->n_inputs * sizeof(rknn_input));
+    memset(input_unit->inputs, 0, input_unit->n_inputs * sizeof(rknn_input));
+
+    input_unit->inputs[0].index = 0;
+    input_unit->inputs[0].type  = RKNN_TENSOR_UINT8;
+    input_unit->inputs[0].size  = img.cols * img.rows * img.channels() * sizeof(uint8_t);
+    input_unit->inputs[0].fmt   = RKNN_TENSOR_NHWC;
+    input_unit->inputs[0].buf = new uint8_t[img.cols * img.rows * img.channels()];
+    memcpy(input_unit->inputs[0].buf, img.data, input_unit->inputs[0].size);
+    return 0;
+}
+
+static int rknn_plugin_release(struct ThreadData *td, struct InputUnit *input_unit) {
+    // 释放输入源
+     for(uint32_t idx = 0; idx < input_unit->n_inputs; idx++){
+         free(input_unit->inputs[idx].buf);
+     }
+     free(input_unit->inputs);
+     return 0;
+}
+
+static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_unit) {
+    d_rknn_plugin_info("plugin print output data")
+    // 收集测试结果
+    for (int i = 0; i < 1; i++) {
+        uint32_t MaxClass[5];
+        float fMaxProb[5];
+        float *buffer = (float *) output_unit->outputs[i].buf;
+        uint32_t sz = output_unit->outputs[i].size / 4;
+
+        rknn_plugin_GetTop(buffer, fMaxProb, MaxClass, sz, 5);
+
+        printf(" --- Top5 ---\n");
+        for (int i = 0; i < 5; i++) {
+            printf("%3d: %8.6f\n", MaxClass[i], fMaxProb[i]);
+        }
+    }
+    return 0;
+}
+
+// 注册所有本插件的相关函数到插件结构体中
+// 注意：插件名称和结构体定义名称必须和插件动态库名称一致
+static struct PluginStruct rknn_mobilenet = {
+        .plugin_name 		= "rknn_mobilenet",
+        .plugin_version 	= 1,
+        .rknn_infer_config  = rknn_plugin_infer_config,
+        .init				= rknn_plugin_init,
+        .uninit 			= rknn_plugin_uninit,
+        .rknn_input 		= rknn_plugin_input,
+        .rknn_input_release = rknn_plugin_release,
+        .rknn_output		= rknn_plugin_output,
+};
+
+// 插件动态库在加载时会自动调用该函数，因为plugin_init的原因
+static void plugin_init plugin_auto_register(){
+    d_rknn_plugin_info("auto register plugin %p, name: %s", &rknn_mobilenet, rknn_mobilenet.plugin_name)
+    plugin_register(&rknn_mobilenet);
+}
+
+// 插件动态库在关闭时会自动调用该函数
+static void plugin_exit plugin_auto_unregister(){
+    d_rknn_plugin_info("auto unregister plugin %p, name: %s", &rknn_mobilenet, rknn_mobilenet.plugin_name)
+    plugin_unregister(&rknn_mobilenet);
+}

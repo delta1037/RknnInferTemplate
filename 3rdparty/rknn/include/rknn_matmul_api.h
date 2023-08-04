@@ -73,7 +73,7 @@ typedef struct rknn_matmul_info_t
 /*  rknn_matmul_create
 
     params:
-        rknn_matmul_ctx *ctx           the handle of context.
+        rknn_matmul_ctx *rk_model_ctx           the handle of context.
         rknn_matmul_info *info         the matmal information.
         rknn_matmul_io_attr *io_attr   inputs/output attribute
     return:
@@ -84,7 +84,7 @@ int rknn_matmul_create(rknn_matmul_ctx* ctx, rknn_matmul_info* info, rknn_matmul
 /* rknn_matmul_set_io_mem
 
     params:
-        rknn_matmul_ctx ctx            the handle of context.
+        rknn_matmul_ctx rk_model_ctx            the handle of context.
         rknn_tensor_mem *mem           the pointer of tensor memory information.
         rknn_matmul_tensor_attr *attr  the attribute of input or output tensor buffer.
     return:
@@ -147,7 +147,7 @@ int rknn_matmul_set_io_mem(rknn_matmul_ctx ctx, rknn_tensor_mem* mem, rknn_matmu
     run the matmul in blocking mode
 
     params:
-        rknn_matmul_ctx ctx         the handle of context.
+        rknn_matmul_ctx rk_model_ctx         the handle of context.
     return:
         int                         error code.
  */
@@ -158,7 +158,7 @@ int rknn_matmul_run(rknn_matmul_ctx ctx);
     destroy the matmul context
 
     params:
-        rknn_matmul_ctx ctx         the handle of context.
+        rknn_matmul_ctx rk_model_ctx         the handle of context.
     return:
         int                         error code.
  */
