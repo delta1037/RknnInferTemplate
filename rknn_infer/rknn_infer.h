@@ -104,6 +104,8 @@ private:
     RetStatus get_input_unit(QueuePack &pack);
     // 填入输入
     RetStatus put_input_unit(QueuePack &pack);
+    // 获取队列大小
+    uint32_t get_queue_size();
 
     // 输入处理线程
     void input_data_thread(uint32_t idx);
@@ -115,7 +117,7 @@ private:
     StaticStruct m_statistic;
 #endif
     // 插件程序给调度程序的配置
-    PluginConfigGet m_plugin_get_config{};
+    PluginConfigGet m_plugin_get_config;
     // 调度程序给插件程序的配置
     PluginConfigSet m_plugin_set_config{};
     // 调度队列

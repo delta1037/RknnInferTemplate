@@ -70,12 +70,41 @@ PluginStruct* load_plugin(const std::string &plugin_name){
     }
 
     // 如果没有注册过，就查找结构体定义位置
-    d_rknn_plugin_info("dlsym plugin %s, symbol:%s", plugin_name.c_str(), plugin_name.c_str())
-    plugin = static_cast<PluginStruct *>(dlsym(dll_handle, plugin_name.c_str()));
-
+    std::string plugin_symbol = plugin_name;
+#ifdef __cplusplus
+    // C++ 中符号修饰略显复杂，所以需要使用系统命令查询修饰后的符号
+    std::string cmd = "nm " + lib_path + " | grep " + plugin_name + " | grep -i \" d \" | awk '{print $3}'";
+    d_rknn_plugin_info("dlsym plugin %s, cmd:%s", plugin_name.c_str(), cmd.c_str())
+    FILE *fp = popen(cmd.c_str(), "r");
+    if (fp == nullptr){
+        d_rknn_plugin_error("popen error!!!")
+        return nullptr;
+    }
+    char symbol_buffer[1024];
+    memset(symbol_buffer, 0, 1024);
+    if (nullptr == fgets(symbol_buffer, 1024, fp)){
+        d_rknn_plugin_error("fgets error!!!")
+        return nullptr;
+    }
+    pclose(fp);
+    if (strlen(symbol_buffer) == 0){
+        d_rknn_plugin_error("popen error!!!")
+        return nullptr;
+    }
+    // 去掉最后一个换行符
+    symbol_buffer[strlen(symbol_buffer) - 1] = '\0';
+    plugin_symbol = std::string(symbol_buffer);
+#endif
+    plugin = static_cast<PluginStruct *>(dlsym(dll_handle, plugin_symbol.c_str()));
+    d_rknn_plugin_info("dlsym plugin %s, symbol:%s, symbol_ptr:%p",
+                       plugin_name.c_str(),
+                       plugin_symbol.c_str(),
+                       plugin)
     // 将查找到的结构体插入到 map 中
     if (plugin) {
         map_plugin_insert(plugin_name, plugin);
+    }else{
+        plugin = map_plugin_find(plugin_name);
     }
     return plugin;
 }
@@ -113,10 +142,10 @@ struct PluginStruct *get_plugin(const std::string &plugin_name){
         return nullptr;
     }
 
-    if (it_find->get_config == nullptr){
-        d_rknn_plugin_error("plugin get_config is nullptr! plugin_name=%s", plugin_name.c_str())
-        return nullptr;
-    }
+//    if (it_find->get_config == nullptr){
+//        d_rknn_plugin_error("plugin get_config is nullptr! plugin_name=%s", plugin_name.c_str())
+//        return nullptr;
+//    }
     if (it_find->set_config == nullptr){
         d_rknn_plugin_error("plugin set_config is nullptr! plugin_name=%s", plugin_name.c_str())
         return nullptr;

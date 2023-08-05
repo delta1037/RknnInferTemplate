@@ -21,11 +21,15 @@ RknnInfer::RknnInfer(const std::string &model_name, const std::string &plugin_na
     }
 
     // 获取插件配置
-    if (0 != plugin->get_config(&m_plugin_get_config)) {
+    if (plugin->get_config != nullptr && 0 != plugin->get_config(&m_plugin_get_config)) {
         d_rknn_infer_error("get_config failed")
         return;
     }
-    d_rknn_infer_info("rknn config, input nums:%d, output nums:%d", m_plugin_get_config.input_thread_nums, m_plugin_get_config.output_thread_nums)
+    d_rknn_infer_info("rknn config, input_thread_nums:%d, output_thread_nums:%d",
+                      m_plugin_get_config.input_thread_nums,
+                      m_plugin_get_config.output_thread_nums)
+    d_rknn_infer_info("rknn config, output_want_float:%d",
+                      m_plugin_get_config.output_want_float)
 
     // 初始化模型
 #ifdef PERFORMANCE_STATISTIC
@@ -118,6 +122,11 @@ RetStatus RknnInfer::put_input_unit(QueuePack &pack) {
     return RetStatus::RET_STATUS_SUCCESS;
 }
 
+uint32_t RknnInfer::get_queue_size() {
+    std::unique_lock<std::mutex> proc_queue_lock(m_infer_queue_mutex);
+    return m_infer_queue.size();
+}
+
 void RknnInfer::input_data_thread(uint32_t idx) {
     auto &td_data = m_input_data_meta[idx];
     // 插件初始化
@@ -137,6 +146,20 @@ void RknnInfer::input_data_thread(uint32_t idx) {
 #endif
 
     while(g_system_running){
+        // 限制队列长度，降低任务处理延时
+        if(m_plugin_get_config.task_queue_limit !=0){
+            uint32_t queue_size = get_queue_size();
+            if(queue_size >= uint32_t(m_plugin_get_config.task_queue_limit / 1.5)){
+                sleepUS(100000);
+                continue;
+            }else if (queue_size >= m_plugin_get_config.task_queue_limit){
+                sleepUS(500000);
+                continue;
+            }else if (queue_size >= uint32_t(m_plugin_get_config.task_queue_limit * 1.5)){
+                sleepUS(100000);
+                continue;
+            }
+        }
         // 收集数据
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_plugin_input_ms = get_time_of_ms();

@@ -161,3 +161,4 @@ cython_debug/
 cmake-build-debug/
 .idea/
 3rdparty/opencv/**
+cmake-build-release/

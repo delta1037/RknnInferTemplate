@@ -22,6 +22,7 @@ enum ThreadType{
     THREAD_TYPE_OUTPUT,
 };
 
+// 输入单元，包含输入数据和输入数据数量
 struct InputUnit{
     // 输入数据
     rknn_input *inputs;
@@ -29,6 +30,7 @@ struct InputUnit{
     uint32_t n_inputs;
 };
 
+// 输出单元，包含输出数据和输出数据数量
 struct OutputUnit{
     // 输出数据
     rknn_output *outputs;
@@ -43,32 +45,47 @@ struct ThreadData {
     uint32_t thread_id;
     ThreadType thread_type;
 
-    // 插件私有数据
+    // 每个线程的插件私有数据
     void *plugin_private_data;
 
     // 共享接口
     PluginStruct *plugin;
 };
 
-// 插件配置
+// 插件程序给调度程序的配置
 struct PluginConfigGet{
     // 输入线程个数
     uint32_t input_thread_nums;
     // 输出线程个数
     uint32_t output_thread_nums;
 
-    // 是否需要输出float类型的输出结果
+    // 任务队列个数限制(0代表无限制)，降低任务处理延时
+    uint32_t task_queue_limit;
+
+    // 是否需要输出 float 类型的输出结果
     bool output_want_float;
+
+    // 默认配置
+    PluginConfigGet(){
+        input_thread_nums = 1;
+
+        output_thread_nums = 1;
+
+        task_queue_limit = 100;
+
+        output_want_float = true;
+    }
 };
 
+// 调度程序给插件程序的配置
 struct PluginConfigSet{
     // 模型版本
     rknn_sdk_version sdk_version;
-    // 输入输出个数
+    // 输入输出 tensor 个数
     rknn_input_output_num io_num;
-    // 输入特征
+    // 输入 tensor 特征
     rknn_tensor_attr input_attr;
-    // 输出特征
+    // 输出 tensor 特征
     rknn_tensor_attr output_attr;
 };
 

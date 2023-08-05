@@ -10,8 +10,7 @@
 #include "rknn_model.h"
 #include "utils_log.h"
 
-static unsigned char* load_model(const char* filename, int* model_size)
-{
+static unsigned char* load_model(const char* filename, int* model_size) {
     FILE* fp = fopen(filename, "rb");
     if (fp == nullptr) {
         printf("fopen %s fail!\n", filename);
@@ -57,7 +56,7 @@ RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_conf
         return;
     }
 
-    // 模型信息打印
+    // 模型信息查询
     rknn_sdk_version version;
     ret = rknn_query(rk_model_ctx, RKNN_QUERY_SDK_VERSION, &version, sizeof(rknn_sdk_version));
     if (ret < 0) {
@@ -84,7 +83,6 @@ RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_conf
         ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
         if (ret != RKNN_SUCC) {
             d_rknn_model_error("rknn_query fail! ret=%d", ret);
-
             return;
         }
         CHECK(show_model, true, dump_tensor_attr(&(input_attrs[i]));)
@@ -92,7 +90,6 @@ RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_conf
     memcpy(&plugin_config_set.input_attr, &input_attrs[0], sizeof(input_attrs));
 
     CHECK(show_model, true, d_rknn_model_info("output tensors:"))
-
     rknn_tensor_attr output_attrs[io_num.n_output];
     memset(output_attrs, 0, sizeof(output_attrs));
     for (int i = 0; i < io_num.n_output; i++) {
