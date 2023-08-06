@@ -213,7 +213,7 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
 }
 ```
 
-在多源推理的情况下，输入接口可以从 `ThreadData` 中的 `plugin_private_data` 获取到输入线程的私有数据源，然后从该私有数据源装配需要推理的数据。
+在多源推理的情况下，输入接口可以从 `ThreadData` 中的 `plugin_sync_data` 获取到输入线程的私有数据源，然后从该私有数据源装配需要推理的数据。
 
 ## 3.2 插件编译
 

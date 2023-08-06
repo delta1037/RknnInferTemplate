@@ -129,7 +129,7 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
 
         d_rknn_plugin_info(" --- Top5 ---");
         for (int j = 0; j < 5; j++) {
-            d_rknn_plugin_info("%3d: %8.6f\n", max_class[j], max_prob[j]);
+            d_rknn_plugin_info("%3d: %8.6f", max_class[j], max_prob[j]);
         }
     }
     return 0;

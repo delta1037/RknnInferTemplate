@@ -34,6 +34,12 @@ struct PluginInputData {
     std::string image_path;
 };
 
+// 输出线程私有数据
+struct PluginOutputData {
+    // 每个线程定制输出
+    std::string image_path;
+};
+
 // 插件输入输出线程同步数据
 struct PluginSyncData {
     // 线程输入图像缓存
@@ -46,13 +52,13 @@ struct PluginSyncData {
 
 static int get_config(PluginConfigGet *plugin_config){
     // 输入线程个数
-    plugin_config->input_thread_nums = 1;
+    plugin_config->input_thread_nums = 2;
     // 输出线程个数
-    plugin_config->output_thread_nums = 1;
+    plugin_config->output_thread_nums = 2;
     // 是否需要输出float类型的输出结果
     plugin_config->output_want_float = false;
 
-    d_rknn_plugin_info("post process config: box_conf_threshold = %.2f, nms_threshold = %.2f\n", box_conf_threshold, nms_threshold);
+    d_rknn_plugin_info("post process config: box_conf_threshold = %.2f, nms_threshold = %.2f", box_conf_threshold, nms_threshold);
     return 0;
 }
 
@@ -70,6 +76,17 @@ static int rknn_plugin_init(struct ThreadData *td) {
         auto *pri_data = (PluginInputData *)td->plugin_private_data;
         if(td->thread_id == 0){
             pri_data->image_path = "model/bus.jpg";
+        }else if(td->thread_id == 1) {
+            pri_data->image_path = "model/bus.jpg";
+        }
+    }else{
+        // 设置输出线程的输出源
+        td->plugin_private_data = new PluginOutputData();
+        auto *pri_data = (PluginOutputData *)td->plugin_private_data;
+        if(td->thread_id == 0) {
+            pri_data->image_path = "thread_1_out.jpg";
+        }else if(td->thread_id == 1) {
+            pri_data->image_path = "thread_2_out.jpg";
         }
     }
     return 0;
@@ -93,26 +110,26 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
     // Load image
     sync_data->orig_img = imread(pri_data->image_path, cv::IMREAD_COLOR);
     if (!sync_data->orig_img.data) {
-        d_rknn_plugin_error("cv::imread %s fail!\n", pri_data->image_path.c_str());
+        d_rknn_plugin_error("cv::imread %s fail!", pri_data->image_path.c_str());
         return -1;
     }
 
     cv::Mat img;
     cv::cvtColor(sync_data->orig_img, img, cv::COLOR_BGR2RGB);
-    d_rknn_plugin_info("img input_width = %d, img input_height = %d\n", sync_data->orig_img.cols, sync_data->orig_img.rows);
+    d_rknn_plugin_info("img input_width = %d, img input_height = %d", sync_data->orig_img.cols, sync_data->orig_img.rows);
 
     if (g_plugin_config_set.input_attr[0].fmt == RKNN_TENSOR_NCHW) {
-        d_rknn_plugin_info("model is NCHW input fmt\n");
+        d_rknn_plugin_info("model is NCHW input fmt");
         sync_data->input_channel = g_plugin_config_set.input_attr[0].dims[1];
         sync_data->input_height  = g_plugin_config_set.input_attr[0].dims[2];
         sync_data->input_width   = g_plugin_config_set.input_attr[0].dims[3];
     } else {
-        d_rknn_plugin_info("model is NHWC input fmt\n");
+        d_rknn_plugin_info("model is NHWC input fmt");
         sync_data->input_height  = g_plugin_config_set.input_attr[0].dims[1];
         sync_data->input_width   = g_plugin_config_set.input_attr[0].dims[2];
         sync_data->input_channel = g_plugin_config_set.input_attr[0].dims[3];
     }
-    d_rknn_plugin_info("model input input_height=%d, input_width=%d, input_channel=%d\n", sync_data->input_height, sync_data->input_width, sync_data->input_channel);
+    d_rknn_plugin_info("model input input_height=%d, input_width=%d, input_channel=%d", sync_data->input_height, sync_data->input_width, sync_data->input_channel);
 
     input_unit->n_inputs = g_plugin_config_set.io_num.n_input;
     input_unit->inputs = (rknn_input*)malloc(input_unit->n_inputs * sizeof(rknn_input));
@@ -125,7 +142,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
     input_unit->inputs[0].buf = new uint8_t[sync_data->input_width * sync_data->input_height * sync_data->input_channel];
 
     if (sync_data->orig_img.cols != sync_data->input_width || sync_data->orig_img.rows != sync_data->input_height) {
-        d_rknn_plugin_info("resize with RGA!\n");
+        d_rknn_plugin_info("resize with RGA!");
 
         // init rga context
         rga_buffer_t src;
@@ -171,12 +188,13 @@ static int rknn_plugin_input_release(struct ThreadData *td, struct InputUnit *in
 static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_unit) {
     // 处理输出数据
     d_rknn_plugin_info("plugin print output data, thread_id: %d", td->thread_id)
+    auto *pri_data = (PluginOutputData *)td->plugin_private_data;
     auto *sync_data = (PluginSyncData *)td->plugin_sync_data;
 
     // post process
     float scale_w = (float)sync_data->input_width / (float)sync_data->orig_img.cols;
     float scale_h = (float)sync_data->input_height / (float)sync_data->orig_img.rows;
-    d_rknn_plugin_info("scale_w=%f, scale_h=%f\n", scale_w, scale_h);
+    d_rknn_plugin_info("scale_w=%f, scale_h=%f", scale_w, scale_h);
 
     detect_result_group_t detect_result_group;
     std::vector<float>    out_scales;
@@ -185,26 +203,6 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
         out_scales.push_back(g_plugin_config_set.output_attr[i].scale);
         out_zps.push_back(g_plugin_config_set.output_attr[i].zp);
     }
-//    // show_result
-//    printf("output 0: ");
-//    for(uint32_t i = 0; i < output_unit->outputs[0].size; i++){
-//        printf("%x", ((int8_t*)output_unit->outputs[0].buf)[i]);
-//    }
-//    printf("\n");
-//    printf("output 1: ");
-//    for(uint32_t i = 0; i < output_unit->outputs[1].size; i++){
-//        printf("%x", ((int8_t*)output_unit->outputs[1].buf)[i]);
-//    }
-//    printf("\n");
-//    printf("output 2: ");
-//    for(uint32_t i = 0; i < output_unit->outputs[2].size; i++){
-//        printf("%x", ((int8_t*)output_unit->outputs[2].buf)[i]);
-//    }
-//    printf("\n");
-//    printf("input_height:%d, input_width:%d\n", sync_data->input_height, sync_data->input_width);
-//    printf("scale_w:%f, scale_h:%f\n", scale_w, scale_h);
-////    for()
-//    printf("out_zps:%d, out_scales:%f\n", out_zps[0], out_scales[0]);
     post_process(
             (int8_t*)output_unit->outputs[0].buf,
             (int8_t*)output_unit->outputs[1].buf,
@@ -219,7 +217,7 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
     for (int i = 0; i < detect_result_group.count; i++) {
         detect_result_t* det_result = &(detect_result_group.results[i]);
         sprintf(text, "%s %.1f%%", det_result->name, det_result->prop * 100);
-        d_rknn_plugin_info("%s @ (%d %d %d %d) %f\n", det_result->name, det_result->box.left, det_result->box.top,
+        d_rknn_plugin_info("%s @ (%d %d %d %d) %f", det_result->name, det_result->box.left, det_result->box.top,
                det_result->box.right, det_result->box.bottom, det_result->prop);
         int x1 = det_result->box.left;
         int y1 = det_result->box.top;
@@ -229,7 +227,7 @@ static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_u
         putText(sync_data->orig_img, text, cv::Point(x1, y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
     }
 
-    imwrite("./out.jpg", sync_data->orig_img);
+    imwrite(pri_data->image_path, sync_data->orig_img);
 
     // 释放输出
     delete sync_data;
