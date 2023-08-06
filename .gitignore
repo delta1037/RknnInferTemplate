@@ -162,3 +162,4 @@ cmake-build-debug/
 .idea/
 3rdparty/opencv/**
 cmake-build-release/
+3rdparty/rga/**

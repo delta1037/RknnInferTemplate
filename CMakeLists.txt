@@ -33,6 +33,11 @@ else()
 endif()
 find_package(OpenCV REQUIRED)
 
+## rga
+SET(RGA_DIR ${CMAKE_SOURCE_DIR}/3rdparty/rga/RK356X/)
+include_directories(${RGA_DIR}/include)
+link_directories(${RGA_DIR}/lib/Linux/aarch64)
+
 ## 日志记录功能
 SET(DLOG_DIR ${CMAKE_SOURCE_DIR}/3rdparty/dlog/)
 include_directories(${DLOG_DIR}/include)
@@ -110,13 +115,15 @@ target_link_libraries(rknn_mobilenet
 )
 ## rknn_yolov5_demo
 # https://github.com/rockchip-linux/rknpu2/tree/master/examples/rknn_yolov5_demo
-#include_directories(${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolov5/)
-#add_library(rknn_yolov5 SHARED
-#        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolov5/rknn_yolov5.cpp
-#        ${DLOG_SRC}
-#        )
-#target_link_libraries(rknn_yolov5
-#        ${OpenCV_LIBS}
-#        ${RKNN_DIR}/lib/librknn_api.so
-#        ${RKNN_DIR}/lib/librknnrt.so
-#        )
+include_directories(${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolo_v5/)
+add_library(rknn_yolo_v5 SHARED
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolo_v5/rknn_yolo_v5.cpp
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolo_v5/postprocess.cc
+        ${DLOG_SRC}
+        )
+target_link_libraries(rknn_yolo_v5
+        ${OpenCV_LIBS}
+        ${RKNN_DIR}/lib/librknn_api.so
+        ${RKNN_DIR}/lib/librknnrt.so
+        ${RGA_DIR}/lib/Linux/aarch64/librga.so
+        )
