@@ -50,6 +50,7 @@ endif ()
 include_directories(
     ${CMAKE_SOURCE_DIR}/rknn_infer
     ${CMAKE_SOURCE_DIR}/rknn_infer_api
+    ${CMAKE_SOURCE_DIR}/rknn_plugins
 )
 
 #link_libraries(${RKNN_DIR}/lib/librknn_api.so)

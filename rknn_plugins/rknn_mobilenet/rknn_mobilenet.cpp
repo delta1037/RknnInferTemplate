@@ -8,57 +8,33 @@
 /* 包含定义插件必须的头文件 */
 #include <string>
 #include <cstring>
+
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgcodecs.hpp"
 #include "opencv2/imgproc.hpp"
 
-#include "rknn_api.h"
 #include "rknn_infer_api.h"
+#include "plugin_common.h"
 #include "utils_log.h"
 
 // 插件全局配置信息，由调度程序给插件传来的信息
 PluginConfigSet g_plugin_config_set;
 
 // 插件私有变量定义
-struct plugin_private_data {
-
+struct PluginPrivateData {
+    // 输入源
+    std::string image_path;
 };
 
 const int MODEL_IN_WIDTH    = 224;
 const int MODEL_IN_HEIGHT   = 224;
 const int MODEL_IN_CHANNELS = 3;
 
-static int rknn_plugin_get_top(
-        const float* p_prob,
-        float* p_max_prob,
-        uint32_t* p_max_class,
-        uint32_t output_count,
-        uint32_t top_num){
-    uint32_t i, j;
-    memset(p_max_prob, 0, sizeof(float) * top_num);
-    memset(p_max_class, 0xff, sizeof(float) * top_num);
-
-    for (j = 0; j < top_num; j++) {
-        for (i = 0; i < output_count; i++) {
-            if ((i == *(p_max_class + 0)) || (i == *(p_max_class + 1)) || (i == *(p_max_class + 2)) || (i == *(p_max_class + 3)) ||
-                (i == *(p_max_class + 4))) {
-                continue;
-            }
-
-            if (p_prob[i] > *(p_max_prob + j)) {
-                *(p_max_prob + j) = p_prob[i];
-                *(p_max_class + j) = i;
-            }
-        }
-    }
-    return 1;
-}
-
 static int get_config(PluginConfigGet *plugin_config){
     // 输入线程个数
-    plugin_config->input_thread_nums = 1;
+    plugin_config->input_thread_nums = 2;
     // 输出线程个数
-    plugin_config->output_thread_nums = 1;
+    plugin_config->output_thread_nums = 2;
     // 是否需要输出float类型的输出结果
     plugin_config->output_want_float = true;
     return 0;
@@ -72,22 +48,37 @@ static int set_config(PluginConfigSet *plugin_config){
 }
 
 static int rknn_plugin_init(struct ThreadData *td) {
+    if(td->thread_type == THREAD_TYPE_INPUT) {
+        // 数据读取线程初始化
+        td->plugin_private_data = new PluginPrivateData();
+        auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
+        if(td->thread_id == 0){
+            pri_data->image_path = "model/dog_224x224.jpg";
+        }else if(td->thread_id == 1) {
+            pri_data->image_path = "model/cat_224x224.jpg";
+        }
+    }
     return 0;
 }
 
 static int rknn_plugin_uninit(struct ThreadData *td) {
+    if(td->thread_type == THREAD_TYPE_INPUT) {
+        // 数据读取线程反初始化
+        auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
+        delete pri_data;
+    }
     return 0;
 }
 
 static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit) {
     // 根据td来收集输入源（多线程收集）
     d_rknn_plugin_debug("plugin read input data")
-    std::string image_path = "model/dog_224x224.jpg";
+    auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
 
     // Load image
-    cv::Mat orig_img = imread(image_path, cv::IMREAD_COLOR);
+    cv::Mat orig_img = imread(pri_data->image_path, cv::IMREAD_COLOR);
     if (!orig_img.data) {
-        d_rknn_plugin_error("cv::imread %s fail!\n", image_path.c_str());
+        d_rknn_plugin_error("cv::imread %s fail!\n", pri_data->image_path.c_str());
         return -1;
     }
 
@@ -123,7 +114,7 @@ static int rknn_plugin_release(struct ThreadData *td, struct InputUnit *input_un
 }
 
 static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_unit) {
-    d_rknn_plugin_info("plugin print output data")
+    d_rknn_plugin_info("plugin print output data, thread_id: %d", td->thread_id)
     // 收集测试结果
     for (int i = 0; i < output_unit->n_outputs; i++) {
         uint32_t max_class[5];
