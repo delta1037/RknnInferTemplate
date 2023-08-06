@@ -104,7 +104,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
     return 0;
 }
 
-static int rknn_plugin_release(struct ThreadData *td, struct InputUnit *input_unit) {
+static int rknn_plugin_input_release(struct ThreadData *td, struct InputUnit *input_unit) {
     // 释放输入源
      for(uint32_t idx = 0; idx < input_unit->n_inputs; idx++){
          free(input_unit->inputs[idx].buf);
@@ -144,11 +144,11 @@ static struct PluginStruct rknn_mobilenet = {
         .init				= rknn_plugin_init,
         .uninit 			= rknn_plugin_uninit,
         .rknn_input 		= rknn_plugin_input,
-        .rknn_input_release = rknn_plugin_release,
+        .rknn_input_release = rknn_plugin_input_release,
         .rknn_output		= rknn_plugin_output,
 };
 
-// 插件动态库在加载时会自动调用该函数，因为plugin_init的原因
+// 插件动态库在加载时会自动调用该函数
 static void plugin_init plugin_auto_register(){
     d_rknn_plugin_info("auto register plugin %p, name: %s", &rknn_mobilenet, rknn_mobilenet.plugin_name)
     plugin_register(&rknn_mobilenet);
