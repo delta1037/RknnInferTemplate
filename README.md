@@ -36,7 +36,7 @@ ROCK PI 上使用 NPU 推理的模型需要做模型转换，转换后的模型�
 
 整体的架构图如下，主要划分为调度程序和插件程序两个部分。其中插件程序主要完成数据的输入处理和推理结果的输出处理；调度程序包括了核心的推理调度模块，对推理流程进一步封装的模型管理模块，最后是一个插件管理模块做插件的加载和校验。调度程序在插件加载之后通过插件接口与插件程序通信。
 
-![image](https://github.com/delta1037/RknnInferTemplate/assets/architecture.png)
+![image](assets/architecture.png)
 
 ## 2.2 细节
 
