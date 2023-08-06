@@ -30,11 +30,13 @@ public:
 
 private:
     // 内部模型上下文拷贝接口
-    explicit RknnModel(rknn_context ctx);
+    explicit RknnModel(rknn_context ctx, PluginConfigSet &plugin_config_set);
 private:
     // 初始化记录
     bool init;
+    bool is_dup;
     rknn_context rk_model_ctx;
     unsigned char* m_model{};
+    PluginConfigSet &m_plugin_config_set;
 };
 #endif //PLUGIN_RKNN_IMAGE_RKNN_MODEL_H

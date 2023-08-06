@@ -183,6 +183,7 @@ void RknnInfer::input_data_thread(uint32_t idx) {
         pack.s_pack_record_ms = get_time_of_ms();
 #endif
         pack.input_unit = input_unit;
+        pack.plugin_sync_data = td_data.plugin_sync_data;
         put_input_unit(pack);
     }
 
@@ -266,6 +267,8 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
 #endif
 
         // 输出结果
+        // 转移同步数据
+        td_data.plugin_sync_data = pack.plugin_sync_data;
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_plugin_output = get_time_of_ms();
 #endif
@@ -280,6 +283,23 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
             m_statistic.s_plugin_output_ms += get_time_of_ms() - t_plugin_output;
         }
 #endif
+
+        // 释放输入资源
+#ifdef PERFORMANCE_STATISTIC
+        time_unit t_plugin_input_release = get_time_of_ms();
+#endif
+        if(0 != td_data.plugin->rknn_input_release(&td_data, pack.input_unit)){
+            d_rknn_infer_error("rknn_input_release failed")
+            continue;
+        }
+#ifdef PERFORMANCE_STATISTIC
+        {
+            std::lock_guard<std::mutex> proc_queue_lock(m_statistic.s_plugin_input_release_mutex);
+            m_statistic.s_plugin_input_release_count++;
+            m_statistic.s_plugin_input_release_ms += get_time_of_ms() - t_plugin_input_release;
+        }
+#endif
+
         // 释放资源
 #ifdef PERFORMANCE_STATISTIC
         time_unit t_model_infer_release = get_time_of_ms();
@@ -296,21 +316,7 @@ void RknnInfer::infer_proc_thread(uint32_t idx) {
             m_statistic.s_model_release_ms += get_time_of_ms() - t_model_infer_release;
         }
 #endif
-        // 释放输入资源
-#ifdef PERFORMANCE_STATISTIC
-        time_unit t_plugin_input_release = get_time_of_ms();
-#endif
-        if(0 != td_data.plugin->rknn_input_release(&td_data, pack.input_unit)){
-            d_rknn_infer_error("rknn_input_release failed")
-            continue;
-        }
-#ifdef PERFORMANCE_STATISTIC
-        {
-            std::lock_guard<std::mutex> proc_queue_lock(m_statistic.s_plugin_input_release_mutex);
-            m_statistic.s_plugin_input_release_count++;
-            m_statistic.s_plugin_input_release_ms += get_time_of_ms() - t_plugin_input_release;
-        }
-#endif
+
         // 释放输出
         free(output_unit->outputs);
         free(output_unit);

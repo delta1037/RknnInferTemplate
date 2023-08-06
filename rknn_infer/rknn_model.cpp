@@ -38,7 +38,7 @@ static void dump_tensor_attr(rknn_tensor_attr* attr) {
            get_qnt_type_string(attr->qnt_type), attr->zp, attr->scale);
 }
 
-RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_config_set, bool show_model) {
+RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_config_set, bool show_model):m_plugin_config_set(plugin_config_set) {
     // 初始化变量
     init = false;
     rk_model_ctx = 0;
@@ -76,44 +76,45 @@ RknnModel::RknnModel(const std::string &model_path, PluginConfigSet &plugin_conf
     CHECK(show_model, true, d_rknn_model_info("m_model input num: %d, output num: %d", io_num.n_input, io_num.n_output))
 
     CHECK(show_model, true, d_rknn_model_info("input tensors:"))
-    rknn_tensor_attr input_attrs[io_num.n_input];
-    memset(input_attrs, 0, sizeof(input_attrs));
+    plugin_config_set.input_attr = new rknn_tensor_attr[io_num.n_input];
+    memset(plugin_config_set.input_attr, 0, sizeof(rknn_tensor_attr) * io_num.n_input);
     for (int i = 0; i < io_num.n_input; i++) {
-        input_attrs[i].index = i;
-        ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(input_attrs[i]), sizeof(rknn_tensor_attr));
+        plugin_config_set.input_attr[i].index = i;
+        ret = rknn_query(rk_model_ctx, RKNN_QUERY_INPUT_ATTR, &(plugin_config_set.input_attr[i]), sizeof(rknn_tensor_attr));
         if (ret != RKNN_SUCC) {
             d_rknn_model_error("rknn_query fail! ret=%d", ret);
             return;
         }
-        CHECK(show_model, true, dump_tensor_attr(&(input_attrs[i]));)
+        CHECK(show_model, true, dump_tensor_attr(&(plugin_config_set.input_attr[i]));)
     }
-    memcpy(&plugin_config_set.input_attr, &input_attrs[0], sizeof(input_attrs));
 
     CHECK(show_model, true, d_rknn_model_info("output tensors:"))
-    rknn_tensor_attr output_attrs[io_num.n_output];
-    memset(output_attrs, 0, sizeof(output_attrs));
+    plugin_config_set.output_attr = new rknn_tensor_attr[io_num.n_output];
+    memset(plugin_config_set.output_attr, 0, sizeof(rknn_tensor_attr) * io_num.n_output);
     for (int i = 0; i < io_num.n_output; i++) {
-        output_attrs[i].index = i;
-        ret = rknn_query(rk_model_ctx, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs[i]), sizeof(rknn_tensor_attr));
+        plugin_config_set.output_attr[i].index = i;
+        ret = rknn_query(rk_model_ctx, RKNN_QUERY_OUTPUT_ATTR, &(plugin_config_set.output_attr[i]), sizeof(rknn_tensor_attr));
         if (ret != RKNN_SUCC) {
             d_rknn_model_error("rknn_query fail! ret=%d", ret);
             return;
         }
-        CHECK(show_model, true, dump_tensor_attr(&(output_attrs[i]));)
+        CHECK(show_model, true, dump_tensor_attr(&(plugin_config_set.output_attr[i]));)
     }
-    memcpy(&plugin_config_set.output_attr, &output_attrs[0], sizeof(input_attrs));
     d_rknn_model_info("rknn m_model init success! rk_model_ctx：%lu", rk_model_ctx)
+    is_dup = true;
     init = true;
 }
 
 RknnModel *RknnModel::model_infer_dup() const {
-    return new RknnModel(this->rk_model_ctx);
+    return new RknnModel(this->rk_model_ctx, this->m_plugin_config_set);
 }
 
-RknnModel::RknnModel(rknn_context ctx) {
+RknnModel::RknnModel(rknn_context ctx, PluginConfigSet &plugin_config_set): m_plugin_config_set(plugin_config_set){
     // 初始化变量
     init = false;
     this->rk_model_ctx = 0;
+    this->m_model = nullptr;
+    this->is_dup = true;
 
     // 复制 rknn 模型， 做权重复用
     int ret = rknn_dup_context(&ctx, &this->rk_model_ctx);
@@ -134,6 +135,18 @@ RknnModel::~RknnModel() {
     }
     if(m_model != nullptr){
         free(m_model);
+    }
+
+    // 销毁配置信息
+    if(! is_dup){
+        if(m_plugin_config_set.input_attr != nullptr){
+            delete[] m_plugin_config_set.input_attr;
+            m_plugin_config_set.input_attr = nullptr;
+        }
+        if(m_plugin_config_set.output_attr != nullptr){
+            delete[] m_plugin_config_set.output_attr;
+            m_plugin_config_set.output_attr = nullptr;
+        }
     }
 }
 

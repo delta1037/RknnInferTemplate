@@ -21,7 +21,7 @@
 PluginConfigSet g_plugin_config_set;
 
 // 插件私有变量定义
-struct PluginPrivateData {
+struct PluginInputData {
     // 输入源
     std::string image_path;
 };
@@ -50,8 +50,8 @@ static int set_config(PluginConfigSet *plugin_config){
 static int rknn_plugin_init(struct ThreadData *td) {
     if(td->thread_type == THREAD_TYPE_INPUT) {
         // 数据读取线程初始化
-        td->plugin_private_data = new PluginPrivateData();
-        auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
+        td->plugin_private_data = new PluginInputData();
+        auto *pri_data = (PluginInputData *)td->plugin_private_data;
         if(td->thread_id == 0){
             pri_data->image_path = "model/dog_224x224.jpg";
         }else if(td->thread_id == 1) {
@@ -64,7 +64,7 @@ static int rknn_plugin_init(struct ThreadData *td) {
 static int rknn_plugin_uninit(struct ThreadData *td) {
     if(td->thread_type == THREAD_TYPE_INPUT) {
         // 数据读取线程反初始化
-        auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
+        auto *pri_data = (PluginInputData *)td->plugin_private_data;
         delete pri_data;
     }
     return 0;
@@ -73,12 +73,12 @@ static int rknn_plugin_uninit(struct ThreadData *td) {
 static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit) {
     // 根据td来收集输入源（多线程收集）
     d_rknn_plugin_debug("plugin read input data")
-    auto *pri_data = (PluginPrivateData *)td->plugin_private_data;
+    auto *pri_data = (PluginInputData *)td->plugin_private_data;
 
     // Load image
     cv::Mat orig_img = imread(pri_data->image_path, cv::IMREAD_COLOR);
     if (!orig_img.data) {
-        d_rknn_plugin_error("cv::imread %s fail!\n", pri_data->image_path.c_str());
+        d_rknn_plugin_error("cv::imread %s fail!", pri_data->image_path.c_str());
         return -1;
     }
 
@@ -87,7 +87,7 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
 
     cv::Mat img = orig_img_rgb.clone();
     if (orig_img.cols != MODEL_IN_WIDTH || orig_img.rows != MODEL_IN_HEIGHT) {
-        d_rknn_plugin_warn("resize %d %d to %d %d\n", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
+        d_rknn_plugin_warn("resize %d %d to %d %d", orig_img.cols, orig_img.rows, MODEL_IN_WIDTH, MODEL_IN_HEIGHT);
         cv::resize(orig_img, img, cv::Size(MODEL_IN_WIDTH, MODEL_IN_HEIGHT), 0, 0, cv::INTER_LINEAR);
     }
 
@@ -106,11 +106,12 @@ static int rknn_plugin_input(struct ThreadData *td, struct InputUnit *input_unit
 
 static int rknn_plugin_input_release(struct ThreadData *td, struct InputUnit *input_unit) {
     // 释放输入源
-     for(uint32_t idx = 0; idx < input_unit->n_inputs; idx++){
-         free(input_unit->inputs[idx].buf);
-     }
-     free(input_unit->inputs);
-     return 0;
+    for(uint32_t idx = 0; idx < input_unit->n_inputs; idx++){
+        delete[] (uint8_t*)input_unit->inputs[0].buf;
+        input_unit->inputs[0].buf = nullptr;
+    }
+    free(input_unit->inputs);
+    return 0;
 }
 
 static int rknn_plugin_output(struct ThreadData *td, struct OutputUnit *output_unit) {

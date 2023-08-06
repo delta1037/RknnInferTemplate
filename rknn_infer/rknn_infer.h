@@ -20,6 +20,7 @@ struct QueuePack{
     time_unit s_pack_record_ms;
 #endif
     InputUnit* input_unit;
+    void *plugin_sync_data;
 };
 #ifdef PERFORMANCE_STATISTIC
 struct StaticStruct{

@@ -45,8 +45,10 @@ struct ThreadData {
     uint32_t thread_id;
     ThreadType thread_type;
 
-    // 每个线程的插件私有数据
+    // 每个线程的私有数据（输入线程和输出线程）
     void *plugin_private_data;
+    // 输入向输出线程的同步数据（输入线程申请，输出线程释放）
+    void *plugin_sync_data;
 
     // 共享接口
     PluginStruct *plugin;
@@ -84,9 +86,9 @@ struct PluginConfigSet{
     // 输入输出 tensor 个数
     rknn_input_output_num io_num;
     // 输入 tensor 特征
-    rknn_tensor_attr input_attr;
+    rknn_tensor_attr *input_attr;
     // 输出 tensor 特征
-    rknn_tensor_attr output_attr;
+    rknn_tensor_attr *output_attr;
 };
 
 // 插件接口格式定义

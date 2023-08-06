@@ -36,7 +36,11 @@ void map_plugin_insert(const std::string &plugin_name, PluginStruct* plugin){
 void map_plugin_remove(const std::string &plugin_name){
     // 从 map 中查找
     std::lock_guard<std::mutex> map_lock(m_plugin_map_lock);
-    g_plugin_map.erase(plugin_name);
+    auto iter = g_plugin_map.find(plugin_name);
+    if (iter != g_plugin_map.end()){
+        iter->second = nullptr;
+        g_plugin_map.erase(plugin_name);
+    }
 }
 
 PluginStruct* load_plugin(const std::string &plugin_name){
@@ -123,7 +127,7 @@ void plugin_unregister(struct PluginStruct *plugin){
         d_rknn_plugin_error("plugin unregister error, plugin is null")
         return;
     }
-    d_rknn_plugin_info("plugin unregister, plugin_name:%s, plugin_version", plugin->plugin_name, plugin->plugin_version)
+    d_rknn_plugin_info("plugin unregister, plugin_name:%s, plugin_version %d", plugin->plugin_name, plugin->plugin_version)
     map_plugin_remove(plugin->plugin_name);
 }
 

@@ -17,13 +17,13 @@ bool g_system_running;
 void quit_handler(int sig_num){
     if(sig_num == SIGQUIT){
         g_system_running = false;
-        d_rknn_infer_info("system received signal SIGQUIT")
+        d_rknn_infer_warn("system received signal SIGQUIT")
     }else if(sig_num == SIGINT){
         g_system_running = false;
-        d_rknn_infer_info("system received signal SIGINT")
+        d_rknn_infer_warn("system received signal SIGINT")
     }else if (sig_num == SIGSTOP){
         g_system_running = false;
-        d_rknn_infer_info("system received signal SIGSTOP")
+        d_rknn_infer_warn("system received signal SIGSTOP")
     }
 }
 #endif
