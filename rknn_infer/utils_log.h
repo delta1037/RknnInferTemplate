@@ -61,10 +61,10 @@ static uint64_t get_process_id(){
 #define d_time_info(format, ...)  log(LOG_MODULE_INIT(d_time), LOG_INFO, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
 #define d_time_debug(format, ...) log(LOG_MODULE_INIT(d_time), LOG_DEBUG, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
 
-#define d_utils_error(format, ...) log(LOG_MODULE_INIT(d_utils), LOG_ERROR, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
-#define d_utils_info(format, ...)  log(LOG_MODULE_INIT(d_utils), LOG_INFO, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
-#define d_utils_warn(format, ...) log(LOG_MODULE_INIT(d_utils), LOG_WARN, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
-#define d_utils_debug(format, ...) log(LOG_MODULE_INIT(d_utils), LOG_DEBUG, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
+#define d_mpp_module_error(format, ...) log(LOG_MODULE_INIT(d_mpp_module), LOG_ERROR, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
+#define d_mpp_module_info(format, ...)  log(LOG_MODULE_INIT(d_mpp_module), LOG_INFO, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
+#define d_mpp_module_warn(format, ...) log(LOG_MODULE_INIT(d_mpp_module), LOG_WARN, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
+#define d_mpp_module_debug(format, ...) log(LOG_MODULE_INIT(d_mpp_module), LOG_DEBUG, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
 
 #define d_unit_test_error(format, ...) log(LOG_MODULE_INIT(d_unit_test), LOG_ERROR, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);
 #define d_unit_test_info(format, ...)  log(LOG_MODULE_INIT(d_unit_test), LOG_INFO, DLOG_FORMAT_PREFIX#format, get_thread_id(), __FILENAME__, __FUNCTION__ , __LINE__, ##__VA_ARGS__);

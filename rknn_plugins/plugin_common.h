@@ -4,8 +4,10 @@
  * @date: 2023.08.06
  * @brief: 插件公用函数
  */
-#ifndef TEST_RKNN_MODEL_PLUGIN_COMMON_H
-#define TEST_RKNN_MODEL_PLUGIN_COMMON_H
+#ifndef RKNN_INFER_PLUGIN_COMMON_H
+#define RKNN_INFER_PLUGIN_COMMON_H
+
+#include <cstring>
 
 static int rknn_plugin_get_top (
         const float* p_prob,
@@ -32,5 +34,4 @@ static int rknn_plugin_get_top (
     }
     return 1;
 }
-
-#endif //TEST_RKNN_MODEL_PLUGIN_COMMON_H
+#endif //RKNN_INFER_PLUGIN_COMMON_H

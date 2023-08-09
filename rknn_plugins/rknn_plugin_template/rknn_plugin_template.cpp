@@ -16,9 +16,18 @@
 // 插件全局配置信息，由调度程序给插件传来的信息
 PluginConfigSet g_plugin_config_set;
 
-// 插件私有变量定义
-struct PluginPrivateData {
-    // 可以给每个线程定制输入源
+// 输入线程私有数据
+struct PluginInputData {
+    // 每个线程定制输入源
+};
+
+// 输出线程私有数据
+struct PluginOutputData {
+    // 每个线程定制输出
+};
+
+// 插件输入输出线程同步数据
+struct PluginSyncData {
 };
 
 static int get_config(PluginConfigGet *plugin_config){

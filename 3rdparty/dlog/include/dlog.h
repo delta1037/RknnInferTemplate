@@ -11,6 +11,10 @@
 // 对外提供的一些必要的定义
 #define LOG_MAX_BUFFER 409600
 
+#define CHECK_VAL(x,handle) if((x)){        \
+                           handle;          \
+                         }
+
 #define CHECK(x,m,handle) if((x) == (m)){   \
                            handle;          \
                          }

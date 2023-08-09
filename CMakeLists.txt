@@ -38,6 +38,11 @@ SET(RGA_DIR ${CMAKE_SOURCE_DIR}/3rdparty/rga/RK356X/)
 include_directories(${RGA_DIR}/include)
 link_directories(${RGA_DIR}/lib/Linux/aarch64)
 
+## mpp
+SET(MPP_DIR ${CMAKE_SOURCE_DIR}/3rdparty/mpp/)
+include_directories(${MPP_DIR}/include/rockchip)
+link_directories(${MPP_DIR}/Linux/aarch64)
+
 ## 日志记录功能
 SET(DLOG_DIR ${CMAKE_SOURCE_DIR}/3rdparty/dlog/)
 include_directories(${DLOG_DIR}/include)
@@ -90,6 +95,21 @@ target_link_libraries(test_rknn_model
         ${RKNN_DIR}/lib/librknnrt.so
         )
 
+project(test_mpp_video_decoder)
+add_executable(test_mpp_video_decoder
+        ${CMAKE_SOURCE_DIR}/unit_test/test_mpp_video_decoder.cpp
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/mpp_video_decoder.cpp
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/mpp_video_encoder.cpp
+        ${DLOG_SRC}
+        )
+target_link_libraries(test_mpp_video_decoder
+        ${OpenCV_LIBS}
+        ${RKNN_DIR}/lib/librknn_api.so
+        ${RKNN_DIR}/lib/librknnrt.so
+        ${MPP_DIR}/Linux/aarch64/librockchip_mpp.so.0
+        tbb
+        )
+
 # 图像图例插件示例
 ## rknn_plugin_template
 include_directories(${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_plugin_template/)
@@ -126,4 +146,17 @@ target_link_libraries(rknn_yolo_v5
         ${RKNN_DIR}/lib/librknn_api.so
         ${RKNN_DIR}/lib/librknnrt.so
         ${RGA_DIR}/lib/Linux/aarch64/librga.so
+        )
+add_library(rknn_yolo_v5_video SHARED
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolo_v5/rknn_yolo_v5_video.cpp
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/rknn_yolo_v5/postprocess.cc
+        ${CMAKE_SOURCE_DIR}/rknn_plugins/mpp_video_decoder.cpp
+        ${DLOG_SRC}
+        )
+target_link_libraries(rknn_yolo_v5_video
+        ${OpenCV_LIBS}
+        ${RKNN_DIR}/lib/librknn_api.so
+        ${RKNN_DIR}/lib/librknnrt.so
+        ${RGA_DIR}/lib/Linux/aarch64/librga.so
+        ${MPP_DIR}/Linux/aarch64/librockchip_mpp.so
         )
