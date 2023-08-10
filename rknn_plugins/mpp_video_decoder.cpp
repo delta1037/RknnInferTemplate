@@ -152,6 +152,7 @@ int MppVideoDecoder::get_next_frame(DecoderMppFrame &decoder_frame) {
                                    mpp_frame_get_errinfo(decoder_frame.mpp_frame),
                                    mpp_frame_get_discard(decoder_frame.mpp_frame))
             }
+            d_mpp_module_info("decoder_get_frame, format : %d", mpp_frame_get_fmt(decoder_frame.mpp_frame))
             decoder_frame.mpp_frame_format = mpp_frame_get_fmt(decoder_frame.mpp_frame);
             decoder_frame.data_buf = (char *) mpp_buffer_get_ptr(mpp_frame_get_buffer(decoder_frame.mpp_frame));
             decoder_frame.data_fd = mpp_buffer_get_fd(mpp_frame_get_buffer(decoder_frame.mpp_frame));

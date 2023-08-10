@@ -57,7 +57,10 @@ private:
         MppEncCodecCfg codec_cfg;
 
         // input / output
-        MppBuffer frm_buf;
+        MppBuffer frm_buf = nullptr;
+        MppBuffer pkt_buf = nullptr;
+        MppBuffer md_info = nullptr;
+        MppBufferGroup buf_grp = nullptr;
         MppEncSeiMode sei_mode;
 
         int32_t width;
@@ -67,8 +70,10 @@ private:
         MppFrameFormat fmt = MPP_FMT_YUV422_YUYV;
         MppCodingType type = MPP_VIDEO_CodingAVC;
         uint32_t num_frames;
+
         // resources
         size_t frame_size;
+        size_t mdinfo_size;
 
         int32_t gop = 60;
         int32_t fps = 30;

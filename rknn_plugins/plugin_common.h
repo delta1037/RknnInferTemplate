@@ -34,4 +34,6 @@ static int rknn_plugin_get_top (
     }
     return 1;
 }
+
+
 #endif //RKNN_INFER_PLUGIN_COMMON_H

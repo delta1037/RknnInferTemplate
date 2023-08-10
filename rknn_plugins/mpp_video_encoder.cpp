@@ -18,11 +18,11 @@ MppVideoEncoder::MppVideoEncoder(const std::string &video_path,
                                  int32_t fps, int32_t gop){
     memset(&m_enc_data, 0, sizeof(m_enc_data));
 
-    m_enc_data.fp_output = fopen(video_path.c_str(), "wb");
+    m_enc_data.fp_output = fopen(video_path.c_str(), "wb+");
     CHECK_VAL(m_enc_data.fp_output == nullptr, d_mpp_module_error("failed to open output file %s", video_path.c_str()); return;)
 
     //使用输入的配置初始化编码器
-    if(width != 0){
+    if(width != 0 && height != 0){
         int ret = init_encoder(width, height, fmt, type, fps, gop);
         CHECK_VAL(ret != MPP_OK, d_mpp_module_error("init encoder failed!"); return;)
         m_mpp_init_flag = true;
@@ -45,6 +45,20 @@ MppVideoEncoder::~MppVideoEncoder() {
         mpp_buffer_put(m_enc_data.frm_buf);
         m_enc_data.frm_buf = nullptr;
     }
+
+    if (m_enc_data.pkt_buf) {
+        mpp_buffer_put(m_enc_data.pkt_buf);
+        m_enc_data.pkt_buf = nullptr;
+    }
+
+    if(m_enc_data.md_info){
+        mpp_buffer_put(m_enc_data.md_info);
+        m_enc_data.md_info = nullptr;
+    }
+    if (m_enc_data.buf_grp) {
+        mpp_buffer_group_put(m_enc_data.buf_grp);
+        m_enc_data.buf_grp = nullptr;
+    }
 }
 
 int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
@@ -62,27 +76,50 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
     m_enc_data.fps = fps;
     m_enc_data.gop = gop;
 
+    m_enc_data.mdinfo_size  = (MPP_VIDEO_CodingHEVC == m_enc_data.type) ?
+                         (MPP_ALIGN(m_enc_data.hor_stride, 32) >> 5) *
+                         (MPP_ALIGN(m_enc_data.ver_stride, 32) >> 5) * 16 :
+                         (MPP_ALIGN(m_enc_data.hor_stride, 64) >> 6) *
+                         (MPP_ALIGN(m_enc_data.ver_stride, 16) >> 4) * 16;
     //不同的图像格式所占的内存大小和其长宽的关系是不同的
     //所以要根据不同的输入图像格式为编码器编码开辟不同的内存大小，
-    if (m_enc_data.fmt <= MPP_FMT_YUV420SP_VU)
+    if (m_enc_data.fmt <= MPP_FMT_YUV420SP_VU){
         m_enc_data.frame_size = m_enc_data.hor_stride * m_enc_data.ver_stride * 3/2;
-    else if (m_enc_data.fmt <= MPP_FMT_YUV422_UYVY) {
+
+    } else if (m_enc_data.fmt <= MPP_FMT_YUV422_UYVY) {
         m_enc_data.hor_stride *= 2;
         m_enc_data.frame_size = m_enc_data.hor_stride * m_enc_data.ver_stride;
     } else {
         m_enc_data.frame_size = m_enc_data.hor_stride * m_enc_data.ver_stride * 4;
     }
+    d_mpp_module_info("frame_size : %d", m_enc_data.frame_size)
 
     //开辟编码时需要的内存
-    ret = mpp_buffer_get(nullptr, &m_enc_data.frm_buf, m_enc_data.frame_size);
+    ret = mpp_buffer_group_get_internal(&m_enc_data.buf_grp, MPP_BUFFER_TYPE_DRM);
     if (ret) {
-        printf("failed to get buffer for input frame ret %d\n", ret);
+        d_mpp_module_error("failed to get mpp buffer group ret %d", ret);
         goto MPP_INIT_OUT;
     }
+    ret = mpp_buffer_get(m_enc_data.buf_grp, &m_enc_data.frm_buf, m_enc_data.frame_size);
+    if (ret) {
+        d_mpp_module_error("failed to get buffer for input frame ret %d", ret);
+        goto MPP_INIT_OUT;
+    }
+    ret = mpp_buffer_get(m_enc_data.buf_grp, &m_enc_data.pkt_buf, m_enc_data.frame_size);
+    if (ret) {
+        d_mpp_module_error("failed to get buffer for output packet ret %d", ret);
+        goto MPP_INIT_OUT;
+    }
+    ret = mpp_buffer_get(m_enc_data.buf_grp, &m_enc_data.md_info, m_enc_data.mdinfo_size);
+    if (ret) {
+        d_mpp_module_error("failed to get buffer for motion info output packet ret %d", ret);
+        goto MPP_INIT_OUT;
+    }
+
     //创建 MPP context 和 MPP api 接口
     ret = mpp_create(&m_enc_data.ctx, &m_enc_data.mpi);
     if (ret) {
-        printf("mpp_create failed ret %d\n", ret);
+        d_mpp_module_error("mpp_create failed ret %d", ret);
         goto MPP_INIT_OUT;
     }
     /*初始化编码还是解码，以及编解码的格式
@@ -103,8 +140,8 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
     m_enc_data.bps = m_enc_data.width * m_enc_data.height / 8 * m_enc_data.fps;
     //mpp_enc_data.bps = 4096*1024;
     m_enc_data.prep_cfg.change        = MPP_ENC_PREP_CFG_CHANGE_INPUT |
-                                          MPP_ENC_PREP_CFG_CHANGE_ROTATION |
-                                          MPP_ENC_PREP_CFG_CHANGE_FORMAT;
+                                        MPP_ENC_PREP_CFG_CHANGE_ROTATION |
+                                        MPP_ENC_PREP_CFG_CHANGE_FORMAT;
     m_enc_data.prep_cfg.width         = m_enc_data.width;
     m_enc_data.prep_cfg.height        = m_enc_data.height;
     m_enc_data.prep_cfg.hor_stride    = m_enc_data.hor_stride;
@@ -155,6 +192,7 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
         d_mpp_module_error("mpi control enc set rc cfg failed ret %d", ret);
         goto MPP_INIT_OUT;
     }
+
     /*设置264相关的其他编码参数*/
     m_enc_data.codec_cfg.coding = m_enc_data.type;
     switch (m_enc_data.codec_cfg.coding) {
@@ -212,24 +250,36 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
 
     if (m_enc_data.type == MPP_VIDEO_CodingAVC) {
         MppPacket packet = nullptr;
-        ret = m_enc_data.mpi->control(m_enc_data.ctx, MPP_ENC_GET_HDR_SYNC, &packet);
-        if (ret) {
-            d_mpp_module_error("mpi control enc get extra info failed");
+        /*
+         * Can use packet with normal malloc buffer as input not pkt_buf.
+         * Please refer to vpu_api_legacy.cpp for normal buffer case.
+         * Using pkt_buf buffer here is just for simplifing demo.
+         */
+        mpp_packet_init_with_buffer(&packet, m_enc_data.pkt_buf);
+        /* NOTE: It is important to clear output packet length!! */
+        mpp_packet_set_length(packet, 0);
+        ret = m_enc_data.mpi->control(m_enc_data.ctx, MPP_ENC_GET_EXTRA_INFO, &packet);
+        if (MPP_OK != ret) {
+            d_mpp_module_error("mpi control enc get extra info failed, ret : %d", ret);
             goto MPP_INIT_OUT;
         }
 
         /* get and write sps/pps for H.264 */
+        d_mpp_module_info("mpi control enc get extra info successful, packet : %p", packet)
         if (packet) {
             void *ptr = mpp_packet_get_pos(packet);
             size_t len = mpp_packet_get_length(packet);
-
             if (m_enc_data.fp_output) {
-                fwrite(ptr, 1, len, m_enc_data.fp_output);
+                d_mpp_module_info("write extra data %d bytes", len)
+                uint32_t w_len = fwrite(ptr, 1, len, m_enc_data.fp_output);
+                if (w_len != len){
+                    d_mpp_module_error("failed to save extra data! w_len %d len %d", w_len, len);
+                    goto MPP_INIT_OUT;
+                }
             }
-            packet = nullptr;
+            mpp_packet_deinit(&packet);
         }
     }
-
     return 0;
 
 MPP_INIT_OUT:
@@ -241,6 +291,18 @@ MPP_INIT_OUT:
     if (m_enc_data.frm_buf) {
         mpp_buffer_put(m_enc_data.frm_buf);
         m_enc_data.frm_buf = nullptr;
+    }
+    if (m_enc_data.pkt_buf) {
+        mpp_buffer_put(m_enc_data.pkt_buf);
+        m_enc_data.frm_buf = nullptr;
+    }
+    if(m_enc_data.md_info){
+        mpp_buffer_put(m_enc_data.md_info);
+        m_enc_data.md_info = nullptr;
+    }
+    if (m_enc_data.buf_grp) {
+        mpp_buffer_group_put(m_enc_data.buf_grp);
+        m_enc_data.buf_grp = nullptr;
     }
     d_mpp_module_error("init mpp failed!");
     return -1;
@@ -294,7 +356,22 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     mpp_frame_set_ver_stride(frame, m_enc_data.ver_stride);
     mpp_frame_set_fmt(frame, m_enc_data.fmt);
     mpp_frame_set_buffer(frame, m_enc_data.frm_buf);
+//    mpp_frame_set_buf_size(frame, m_enc_data.buf_size);
     mpp_frame_set_eos(frame, m_enc_data.frm_eos);
+
+    MppMeta meta = mpp_frame_get_meta(frame);
+    mpp_meta_set_packet(meta, KEY_OUTPUT_PACKET, packet);
+    mpp_meta_set_buffer(meta, KEY_MOTION_INFO, m_enc_data.md_info);
+
+    mpp_packet_init_with_buffer(&packet, m_enc_data.pkt_buf);
+    /* NOTE: It is important to clear output packet length!! */
+    mpp_packet_set_length(packet, 0);
+
+    d_mpp_module_info("mpp_frame mpp_frame_get_buf_size : %d", mpp_frame_get_buf_size(frame))
+//    d_mpp_module_info("mpp_frame mpp_frame_get_hor_stride : %d", mpp_frame_get_hor_stride(frame))
+//    d_mpp_module_info("mpp_frame mpp_frame_get_ver_stride : %d", mpp_frame_get_ver_stride(frame))
+//    d_mpp_module_info("mpp_frame mpp_frame_get_width : %d", mpp_frame_get_width(frame))
+//    d_mpp_module_info("mpp_frame mpp_frame_get_height : %d", mpp_frame_get_height(frame))
     //输入图像进行编码
     ret = m_enc_data.mpi->encode_put_frame(m_enc_data.ctx, frame);
     if (ret) {
@@ -312,6 +389,7 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
         // write packet to file here
         void *ptr   = mpp_packet_get_pos(packet);
         size_t len  = mpp_packet_get_length(packet);
+        d_mpp_module_info("encoded frame %d size %d", m_enc_data.frame_count, len);
 
         m_enc_data.pkt_eos = mpp_packet_get_eos(packet);
 
