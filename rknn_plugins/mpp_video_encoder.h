@@ -34,10 +34,7 @@ private:
                      MppFrameFormat fmt,
                      MppCodingType type,
                      int32_t fps, int32_t gop);
-
-    static MPP_RET read_yuv_image(uint8_t *buf, uint8_t *image, uint32_t width, uint32_t height,
-                           uint32_t hor_stride, uint32_t ver_stride, MppFrameFormat fmt);
-
+    int uninit_encoder();
 private:
     bool m_init_flag = false;
     bool m_mpp_init_flag = false;

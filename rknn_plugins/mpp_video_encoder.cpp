@@ -4,9 +4,9 @@
  * @date: 2023.08.09
  * @brief: Rockchip MPP 视频编码封装， 来源于 https://blog.csdn.net/qq_39839546/article/details/122023991
  */
-
 #include <cstring>
 #include "mpp_video_encoder.h"
+#include "mpp_video_utils.h"
 #include "utils_log.h"
 
 #define MPP_ALIGN(x, a)         (((x)+(a)-1)&~((a)-1))
@@ -32,11 +32,15 @@ MppVideoEncoder::MppVideoEncoder(const std::string &video_path,
 }
 
 MppVideoEncoder::~MppVideoEncoder() {
+    uninit_encoder();
+}
+
+int MppVideoEncoder::uninit_encoder(){
     if(m_enc_data.fp_output != nullptr){
         fclose(m_enc_data.fp_output);
     }
-
     if (m_enc_data.ctx) {
+        m_enc_data.mpi->reset(m_enc_data.ctx);
         mpp_destroy(m_enc_data.ctx);
         m_enc_data.ctx = nullptr;
     }
@@ -59,6 +63,9 @@ MppVideoEncoder::~MppVideoEncoder() {
         mpp_buffer_group_put(m_enc_data.buf_grp);
         m_enc_data.buf_grp = nullptr;
     }
+    d_mpp_module_info("MppVideoEncoder release success! buffer now total: %d",
+                      mpp_buffer_total_now())
+    return 0;
 }
 
 int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
@@ -122,23 +129,26 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
         d_mpp_module_error("mpp_create failed ret %d", ret);
         goto MPP_INIT_OUT;
     }
-    /*初始化编码还是解码，以及编解码的格式
-    MPP_CTX_DEC ： 解码
-    MPP_CTX_ENC ： 编码
-    MPP_VIDEO_CodingAVC ： H.264
-    MPP_VIDEO_CodingHEVC :  H.265
-    MPP_VIDEO_CodingVP8 :  VP8
-    MPP_VIDEO_CodingVP9 :  VP9
-    MPP_VIDEO_CodingMJPEG : MJPEG*/
+
+    /*
+     * 初始化编码还是解码，以及编解码的格式
+     * MPP_CTX_DEC ： 解码
+     * MPP_CTX_ENC ： 编码
+     *
+     * MPP_VIDEO_CodingAVC ： H.264
+     * MPP_VIDEO_CodingHEVC :  H.265
+     * MPP_VIDEO_CodingVP8 :  VP8
+     * MPP_VIDEO_CodingVP9 :  VP9
+     * MPP_VIDEO_CodingMJPEG : MJPEG
+     */
     ret = mpp_init(m_enc_data.ctx, MPP_CTX_ENC, m_enc_data.type);
     if (ret) {
         d_mpp_module_error("mpp_init failed ret %d", ret);
         goto MPP_INIT_OUT;
     }
 
-    /*设置编码参数：宽高、对齐后宽高等参数*/
+    // 设置编码参数：宽高、对齐后宽高等参数
     m_enc_data.bps = m_enc_data.width * m_enc_data.height / 8 * m_enc_data.fps;
-    //mpp_enc_data.bps = 4096*1024;
     m_enc_data.prep_cfg.change        = MPP_ENC_PREP_CFG_CHANGE_INPUT |
                                         MPP_ENC_PREP_CFG_CHANGE_ROTATION |
                                         MPP_ENC_PREP_CFG_CHANGE_FORMAT;
@@ -247,7 +257,6 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
         goto MPP_INIT_OUT;
     }
 
-
     if (m_enc_data.type == MPP_VIDEO_CodingAVC) {
         MppPacket packet = nullptr;
         /*
@@ -283,27 +292,7 @@ int MppVideoEncoder::init_encoder(int32_t width,int32_t height,
     return 0;
 
 MPP_INIT_OUT:
-    if (m_enc_data.ctx) {
-        mpp_destroy(m_enc_data.ctx);
-        m_enc_data.ctx = nullptr;
-    }
-
-    if (m_enc_data.frm_buf) {
-        mpp_buffer_put(m_enc_data.frm_buf);
-        m_enc_data.frm_buf = nullptr;
-    }
-    if (m_enc_data.pkt_buf) {
-        mpp_buffer_put(m_enc_data.pkt_buf);
-        m_enc_data.frm_buf = nullptr;
-    }
-    if(m_enc_data.md_info){
-        mpp_buffer_put(m_enc_data.md_info);
-        m_enc_data.md_info = nullptr;
-    }
-    if (m_enc_data.buf_grp) {
-        mpp_buffer_group_put(m_enc_data.buf_grp);
-        m_enc_data.buf_grp = nullptr;
-    }
+    uninit_encoder();
     d_mpp_module_error("init mpp failed!");
     return -1;
 }
@@ -329,6 +318,7 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     if(!m_mpp_init_flag && width != 0) {
         int ret = init_encoder(width, height, fmt, type, fps, gop);
         CHECK_VAL(ret != MPP_OK, d_mpp_module_error("init encoder failed!"); return false;)
+
         m_mpp_init_flag = true;
         d_mpp_module_info("init encoder success!")
     }
@@ -342,8 +332,11 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     // TODO: improve performance here?
     // 从输入图像的首地址开始读取图像数据，但是读取时会考虑16位对齐，即读取的长和宽都是16的整数倍。
     // 若图像一行或者一列不满16整数倍，则会用空数据补齐行和列
-    read_yuv_image((uint8_t *)buf, image_data, m_enc_data.width, m_enc_data.height,
-                   m_enc_data.hor_stride, m_enc_data.ver_stride, m_enc_data.fmt);
+    yuv_add_stride(image_data,
+                    m_enc_data.width, m_enc_data.height,
+                    m_enc_data.hor_stride, m_enc_data.ver_stride,
+                    m_enc_data.fmt,
+                    (uint8_t *)buf);
     ret = mpp_frame_init(&frame);
     if (ret) {
         d_mpp_module_error("mpp_frame_init failed\n");
@@ -366,14 +359,9 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     mpp_packet_init_with_buffer(&packet, m_enc_data.pkt_buf);
     /* NOTE: It is important to clear output packet length!! */
     mpp_packet_set_length(packet, 0);
-
-    d_mpp_module_info("mpp_frame mpp_frame_get_buf_size : %d", mpp_frame_get_buf_size(frame))
-//    d_mpp_module_info("mpp_frame mpp_frame_get_hor_stride : %d", mpp_frame_get_hor_stride(frame))
-//    d_mpp_module_info("mpp_frame mpp_frame_get_ver_stride : %d", mpp_frame_get_ver_stride(frame))
-//    d_mpp_module_info("mpp_frame mpp_frame_get_width : %d", mpp_frame_get_width(frame))
-//    d_mpp_module_info("mpp_frame mpp_frame_get_height : %d", mpp_frame_get_height(frame))
     //输入图像进行编码
     ret = m_enc_data.mpi->encode_put_frame(m_enc_data.ctx, frame);
+    mpp_frame_deinit(&frame);
     if (ret) {
         d_mpp_module_error("mpp encode put frame failed")
         return false;
@@ -382,6 +370,7 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     ret = m_enc_data.mpi->encode_get_packet(m_enc_data.ctx, &packet);
     if (ret) {
         d_mpp_module_error("mpp encode get packet failed")
+        mpp_frame_deinit(&frame);
         return false;
     }
     //获得编码后的数据长度和首地址，将其写入文件
@@ -389,15 +378,13 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
         // write packet to file here
         void *ptr   = mpp_packet_get_pos(packet);
         size_t len  = mpp_packet_get_length(packet);
-        d_mpp_module_info("encoded frame %d size %d", m_enc_data.frame_count, len);
-
         m_enc_data.pkt_eos = mpp_packet_get_eos(packet);
 
-        if (m_enc_data.fp_output)
+        if (m_enc_data.fp_output) {
             fwrite(ptr, 1, len, m_enc_data.fp_output);
+        }
         mpp_packet_deinit(&packet);
 
-        //printf("encoded frame %d size %d\n", mpp_enc_data.frame_count, len);
         m_enc_data.stream_size += len;
         m_enc_data.frame_count++;
 
@@ -405,69 +392,14 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
             d_mpp_module_warn("found last packet")
         }
     }
+
     if (m_enc_data.num_frames && m_enc_data.frame_count >= m_enc_data.num_frames) {
         d_mpp_module_error("encode max %d frames", m_enc_data.frame_count)
         return false;
     }
     if (m_enc_data.frm_eos && m_enc_data.pkt_eos) {
+        d_mpp_module_error("encode frm_eos  %d pkt_eos %d ", m_enc_data.frm_eos, m_enc_data.pkt_eos)
         return false;
     }
     return true;
-}
-
-MPP_RET MppVideoEncoder::read_yuv_image(uint8_t *buf, uint8_t *image, uint32_t width, uint32_t height,
-                                uint32_t hor_stride, uint32_t ver_stride, MppFrameFormat fmt) {
-    MPP_RET ret = MPP_OK;
-    uint32_t read_size;
-    uint32_t row = 0;
-    // YUV格式的图像都是将YUV三个通道分为三部分存取，YYYYYY*****UUUUU*****VVVVV,所以在将其按照16位对齐copy时先将YUV三个通道的起始地址指定好。
-    uint8_t *buf_y = buf;
-    uint8_t *buf_u = buf_y + hor_stride * ver_stride; // NOTE: diff from gen_yuv_image
-    uint8_t *buf_v = buf_u + hor_stride * ver_stride / 4; // NOTE: diff from gen_yuv_image
-    uint32_t ptr = 0;
-    // 然后按照不同的格式，按照16位对齐copy图像数据到buf下，不同格式读取方式不同。
-    switch (fmt) {
-        case MPP_FMT_YUV420SP : {
-            for (row = 0; row < height; row++) {
-                memcpy(buf_y + row * hor_stride, image,width);
-                image += width;
-            }
-            for (row = 0; row < height / 2; row++) {
-                memcpy(buf_u + row * hor_stride, image, width);
-                image += width;
-            }
-        } break;
-        case MPP_FMT_YUV420P : {
-            for (row = 0; row < height; row++) {
-                memcpy(buf_y + row * hor_stride, image, width);
-                image += width;
-            }
-            for (row = 0; row < height / 2; row++) {
-                memcpy(buf_u + row * hor_stride/2, image, width/2);
-                image += width/2;
-            }
-            for (row = 0; row < height / 2; row++) {
-                memcpy(buf_v + row * hor_stride/2, image, width/2);
-                image += width/2;
-            }
-        } break;
-        case MPP_FMT_ARGB8888 : {
-            for (row = 0; row < height; row++) {
-                memcpy(buf_y + row * hor_stride*4, image, width*4);
-                image += width*4;
-            }
-        } break;
-        case MPP_FMT_YUV422_YUYV :
-        case MPP_FMT_YUV422_UYVY : {
-            for (row = 0; row < height; row++) {
-                memcpy(buf_y + row * hor_stride, image, width*2);
-                image += width*2;
-            }
-        } break;
-        default : {
-            d_mpp_module_error("read image do not support fmt %d", fmt)
-            ret = MPP_ERR_VALUE;
-        } break;
-    }
-    return ret;
 }

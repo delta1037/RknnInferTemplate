@@ -23,11 +23,29 @@ MppVideoDecoder::MppVideoDecoder(const std::string &video_path) {
 }
 
 MppVideoDecoder::~MppVideoDecoder() {
-    fclose(m_in_fp);
-    m_mpp_mpi->reset(m_mpp_ctx);
-    mpp_packet_deinit(&m_pkt);
-    mpp_destroy(m_mpp_ctx);
-    free(m_in_buf);
+    if(m_in_fp != nullptr){
+        fclose(m_in_fp);
+        m_in_buf = nullptr;
+    }
+    if(m_pkt){
+        mpp_packet_deinit(&m_pkt);
+        m_pkt = nullptr;
+    }
+    if(m_in_buf != nullptr){
+        free(m_in_buf);
+        m_in_buf = nullptr;
+    }
+    if(m_mpp_ctx != nullptr){
+        mpp_destroy(m_mpp_ctx);
+        m_mpp_ctx = nullptr;
+    }
+    if(m_frame_buffer_group != nullptr){
+        mpp_buffer_group_put(m_frame_buffer_group);
+        m_frame_buffer_group = nullptr;
+    }
+    d_mpp_module_info("MppVideoDecoder release success! buffer now total: %d, unreleased frame count :%d ",
+                      mpp_buffer_total_now(),
+                      m_frame_count)
 }
 
 int MppVideoDecoder::init_decoder() {
@@ -92,8 +110,6 @@ int MppVideoDecoder::get_next_frame(DecoderMppFrame &decoder_frame) {
         decoder_frame.hor_width = mpp_frame_get_width(decoder_frame.mpp_frame);
         decoder_frame.ver_height = mpp_frame_get_height(decoder_frame.mpp_frame);
         decoder_frame.data_size = mpp_frame_get_buf_size(decoder_frame.mpp_frame);
-//        decoder_frame.pts = mpp_frame_get_pts(decoder_frame.mpp_frame);
-//        decoder_frame.dts = mpp_frame_get_dts(decoder_frame.mpp_frame);
         d_mpp_module_debug("decoder require buffer w:h [%d:%d] stride [%d:%d] buf_size %d",
                            decoder_frame.hor_width,
                            decoder_frame.ver_height,
@@ -152,7 +168,7 @@ int MppVideoDecoder::get_next_frame(DecoderMppFrame &decoder_frame) {
                                    mpp_frame_get_errinfo(decoder_frame.mpp_frame),
                                    mpp_frame_get_discard(decoder_frame.mpp_frame))
             }
-            d_mpp_module_info("decoder_get_frame, format : %d", mpp_frame_get_fmt(decoder_frame.mpp_frame))
+//            d_mpp_module_info("decoder_get_frame, format : %d", mpp_frame_get_fmt(decoder_frame.mpp_frame))
             decoder_frame.mpp_frame_format = mpp_frame_get_fmt(decoder_frame.mpp_frame);
             decoder_frame.data_buf = (char *) mpp_buffer_get_ptr(mpp_frame_get_buffer(decoder_frame.mpp_frame));
             decoder_frame.data_fd = mpp_buffer_get_fd(mpp_frame_get_buffer(decoder_frame.mpp_frame));
