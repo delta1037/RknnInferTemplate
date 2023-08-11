@@ -17,9 +17,6 @@
 #define MAX_DECODER_FRAME_NUM (200)
 
 struct DecoderMppFrame{
-    MppFrame mpp_frame;
-    MppFrameFormat mpp_frame_format;
-
     uint32_t hor_stride;
     uint32_t ver_stride;
 
@@ -29,6 +26,9 @@ struct DecoderMppFrame{
     int data_fd;
     void *data_buf;
     uint32_t data_size;
+
+    MppFrame mpp_frame;
+    MppFrameFormat mpp_frame_format;
 };
 
 class MppVideoDecoder {

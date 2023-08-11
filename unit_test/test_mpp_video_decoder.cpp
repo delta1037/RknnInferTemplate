@@ -14,7 +14,7 @@
 
 int test_decoder(){
     // 初始化解码器
-    std::string path = "1080p_rock.264";
+    std::string path = "1080p_ffmpeg.h264";
     MppVideoDecoder video_decoder = MppVideoDecoder(path);
     if(!video_decoder.is_init()){
         d_unit_test_error("MppVideoDecoder init failed!")
@@ -49,7 +49,7 @@ int test_decoder(){
 
 int test_encoder(){
     // 初始化解码器
-    std::string path = "1080p_rock.264";
+    std::string path = "1080p_ffmpeg.h264";
     MppVideoDecoder video_decoder = MppVideoDecoder(path);
     if(!video_decoder.is_init()){
         d_unit_test_error("MppVideoDecoder init failed!")

@@ -370,7 +370,6 @@ bool MppVideoEncoder::process_image(uint8_t *image_data,
     ret = m_enc_data.mpi->encode_get_packet(m_enc_data.ctx, &packet);
     if (ret) {
         d_mpp_module_error("mpp encode get packet failed")
-        mpp_frame_deinit(&frame);
         return false;
     }
     //获得编码后的数据长度和首地址，将其写入文件

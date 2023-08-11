@@ -35,6 +35,10 @@ MppVideoDecoder::~MppVideoDecoder() {
         free(m_in_buf);
         m_in_buf = nullptr;
     }
+    if(m_mpp_mpi && m_mpp_ctx){
+        m_mpp_mpi->reset(m_mpp_ctx);
+        m_mpp_mpi = nullptr;
+    }
     if(m_mpp_ctx != nullptr){
         mpp_destroy(m_mpp_ctx);
         m_mpp_ctx = nullptr;
@@ -101,7 +105,7 @@ int MppVideoDecoder::get_next_frame(DecoderMppFrame &decoder_frame) {
         if (MPP_OK != ret || !decoder_frame.mpp_frame) {
             d_mpp_module_debug("decode_get_frame failed ret:%d, frame:%p", ret, decoder_frame.mpp_frame);
             // 等待一下2ms，通常1080p解码时间2ms
-            usleep(3000);
+            usleep(2000);
             continue;
         }
 
